@@ -18,7 +18,7 @@ Each one approaches, gets clicked, dissolves, and is reborn at the back of the q
 
 A minute-long tour of the configurator: every effect, every palette and every option.
 
-https://github.com/user-attachments/assets/115aa8e2-0c88-4a3a-9f5e-033689381090
+https://github.com/user-attachments/assets/7b5fd2a6-f071-4bac-8d2c-75a42dc8d5f3
 
 ## Add it to your profile README
 
