@@ -47,7 +47,8 @@ if (P.get('clean') === '1') document.body.classList.add('clean');
 // ---------------------------------------------------------------------------
 function fitCanvas() {
   const stage = $('stage');
-  const narrow = matchMedia('(max-width: 900px)').matches && !document.body.classList.contains('clean');
+  const full = document.body.classList.contains('clean') || document.body.classList.contains('max');
+  const narrow = matchMedia('(max-width: 900px)').matches && !full;
   const availW = stage.clientWidth - 32;
   const availH = narrow ? innerHeight * 0.8 : stage.clientHeight - 32;
   let s = Math.min(availW / S.W, availH / S.H);
@@ -136,6 +137,37 @@ addEventListener('keydown', ev => {
   else return;
   say(`${S.EFFECTS[cfg.fx]} · ${S.PALETTES[cfg.palette].name} · size ${cfg.dot}`);
 });
+
+// Title bar boxes on the panel windows, same pixel glyphs as the animation.
+// Minimize folds the window; maximize (and close on the main window) shows only
+// the preview until Restore / Esc.
+const glyphSvg = rows => {
+  const rects = rows.flatMap((r, y) => [...r].map((c, x) => (c === '#' ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : ''))).join('');
+  return `<svg viewBox="0 0 7 7" aria-hidden="true">${rects}</svg>`;
+};
+function setMaximized(on) {
+  document.body.classList.toggle('max', on);
+  fitCanvas();
+  if (!on) $('panel').querySelector('.win')?.classList.remove('min');
+}
+document.querySelectorAll('.tb').forEach(tb => {
+  const win = tb.closest('.win');
+  const actions = [
+    ['Minimize', () => win.classList.toggle('min')],
+    ['Maximize preview', () => setMaximized(true)],
+    ['Close', () => (tb.dataset.close === 'hide' ? win.classList.add('hidden') : setMaximized(true))],
+  ];
+  actions.forEach(([label, fn], i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.title = b.ariaLabel = label;
+    b.innerHTML = glyphSvg(S.TITLE_GLYPHS[i]);
+    b.addEventListener('click', fn);
+    tb.append(b);
+  });
+});
+$('restore').addEventListener('click', () => setMaximized(false));
+addEventListener('keydown', ev => { if (ev.key === 'Escape' && document.body.classList.contains('max')) setMaximized(false); });
 
 addEventListener('dragover', ev => ev.preventDefault());
 addEventListener('drop', async ev => {
@@ -246,7 +278,7 @@ function renderSnippets() {
 }
 
 $('getBtn').addEventListener('click', () => {
-  $('install').classList.remove('hidden');
+  $('install').classList.remove('hidden', 'min');
   renderSnippets();
   $('install').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });

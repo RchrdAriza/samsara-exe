@@ -238,6 +238,23 @@ function sprite(rows, x, y) {
       if (rows[r][c] === '#') ctx.fillRect(x + c, y + r, 1, 1);
 }
 
+// Minimize / maximize / close boxes on the right of every title bar
+const TITLE_GLYPHS = [
+  ['.......', '.......', '.......', '.......', '.......', '#####..', '#####..'],
+  ['#######', '#######', '#.....#', '#.....#', '#.....#', '#.....#', '#######'],
+  ['##...##', '###.###', '.#####.', '..###..', '.#####.', '###.###', '##...##'],
+];
+const TITLE_BUTTONS_W = 3 * 11 + 2 * 2 + 4;
+function titleButtons(x, y) {
+  TITLE_GLYPHS.forEach((glyph, i) => {
+    const bx = x + i * 13;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(bx, y + 3, 11, 11);
+    ctx.fillStyle = '#000';
+    sprite(glyph, bx + 2, y + 5);
+  });
+}
+
 // 1-bit cursor: '#' = black, 'o' = white outline
 const CURSOR = [
   'o', 'oo', 'o#o', 'o##o', 'o###o', 'o####o', 'o#####o', 'o######o', 'o#######o',
@@ -500,7 +517,8 @@ function drawWindow(repo, s, alpha, ph) {
     ctx.fillRect(x, y, w, 17);
     ctx.fillStyle = '#fff';
     ctx.font = FONT_TITLE;
-    crispText(fitText(repo.name + (s < 0.5 ? '' : '!!!'), w - 14), x + 6, y + 12);
+    crispText(fitText(repo.name + (s < 0.5 ? '' : '!!!'), w - 14 - TITLE_BUTTONS_W), x + 6, y + 12);
+    titleButtons(x + w - TITLE_BUTTONS_W, y);
   }
 
   // cursor: glides in, clicks YES, and leaves with the window
@@ -855,7 +873,7 @@ const fontsReady = () => Promise.all([FONT_TITLE, FONT_BODY, FONT_CLOCK].map(f =
 set({});
 
 window.Samsara = {
-  W, H, DEFAULTS, EFFECTS, PALETTES, cfg, state, colors,
+  W, H, DEFAULTS, EFFECTS, PALETTES, TITLE_GLYPHS, cfg, state, colors,
   mount, set, load, setImage, loadImage, render, encodeGif, exportForAction, fontsReady,
   cycleMs, repoCount: () => repos.length,
 };

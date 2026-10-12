@@ -21,11 +21,22 @@
   #panel { padding: 16px; height: 100vh; overflow: auto; }
 
   .win { border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: var(--paper); margin-bottom: 20px; }
-  .win > h1, .win > h2 {
-    margin: 0; padding: 7px 8px 6px; background: var(--ink); color: var(--paper);
-    font: 8px/1 'Press Start 2P', monospace; letter-spacing: .5px;
+  .titlebar { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--ink); padding: 3px 3px 3px 8px; }
+  .titlebar h1, .titlebar h2 { margin: 0; color: var(--paper); font: 8px/1 'Press Start 2P', monospace; letter-spacing: .5px; }
+  .tb { display: flex; gap: 2px; }
+  .tb button {
+    width: 13px; height: 13px; padding: 0; border: 0; box-shadow: none; background: var(--paper);
+    display: grid; place-items: center; cursor: pointer;
   }
+  .tb button:active { transform: none; background: var(--ink); outline: 1px solid var(--paper); outline-offset: -1px; }
+  .tb button:active svg { fill: var(--paper); }
+  .tb svg { width: 7px; height: 7px; fill: var(--ink); shape-rendering: crispEdges; display: block; }
   .win > .body { padding: 10px 12px 12px; }
+  .win.min > .body { display: none; }
+  #restore { position: fixed; top: 12px; right: 12px; display: none; }
+  body.max { grid-template-columns: 1fr; }
+  body.max #panel { display: none; }
+  body.max #restore { display: block; }
   .lede { margin: 0 0 10px; }
 
   .row { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; align-items: center; margin: 8px 0; }
@@ -71,11 +82,12 @@
 </style>
 </head>
 <body>
+<button type="button" id="restore" title="Esc">Restore</button>
 <main id="stage"><canvas id="c" aria-label="Animated preview of the repo queue"></canvas></main>
 
 <aside id="panel">
   <form class="win" id="form">
-    <h1>samsara.exe</h1>
+    <div class="titlebar"><h1>samsara.exe</h1><span class="tb" data-close="max"></span></div>
     <div class="body">
       <p class="lede">Your repos approach, dissolve, and are reborn at the back of the queue. An animated GIF for your GitHub README.</p>
 
@@ -119,7 +131,7 @@
   </form>
 
   <section class="win hidden" id="install">
-    <h2>install.txt</h2>
+    <div class="titlebar"><h2>install.txt</h2><span class="tb" data-close="hide"></span></div>
     <div class="body">
       <ol>
         <li>In your profile repo (<code id="profileRepo">you/you</code>) create <code>.github/workflows/samsara.yml</code>:</li>
