@@ -293,7 +293,24 @@ const BAYER = [
 
 // The circle's image goes through the selected 1-bit effect. Computed once
 // per image/effect/size combination and cached.
-let haloCache = null;
+// image -> Map("fx|dot" -> canvas); small LRU so flipping between effects is instant
+const haloCache = new Map();
+function haloFor(img) {
+  let byImg = haloCache.get(img);
+  if (!byImg) {
+    byImg = new Map();
+    haloCache.set(img, byImg);
+    if (haloCache.size > 4) haloCache.delete(haloCache.keys().next().value);
+  }
+  const key = cfg.fx + '|' + cfg.dot;
+  let canvas = byImg.get(key);
+  if (!canvas) {
+    canvas = buildHalo(img);
+    byImg.set(key, canvas);
+    if (byImg.size > 32) byImg.delete(byImg.keys().next().value);
+  }
+  return canvas;
+}
 
 function boxBlur(src, D, r) {
   if (r < 1) return src;
@@ -448,13 +465,11 @@ function drawBackground() {
   ctx.fillRect(0, 0, W, H);
 
   const img = image && cfg.bg ? image : null;
-  if (!haloCache || haloCache.img !== img || haloCache.fx !== cfg.fx || haloCache.dot !== cfg.dot)
-    haloCache = { img, fx: cfg.fx, dot: cfg.dot, canvas: buildHalo(img) };
   ctx.save();
   ctx.beginPath();
   ctx.arc(HALO.x, HALO.y, HALO.r, 0, Math.PI * 2);
   ctx.clip();
-  ctx.drawImage(haloCache.canvas, HALO.x - HALO.r, HALO.y - HALO.r);
+  ctx.drawImage(haloFor(img), HALO.x - HALO.r, HALO.y - HALO.r);
   ctx.restore();
   ctx.lineWidth = 3;
   ctx.strokeStyle = '#000';
