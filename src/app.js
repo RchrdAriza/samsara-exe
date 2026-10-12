@@ -33,6 +33,7 @@ S.set({
   fps: P.get('fps') ?? undefined,
   scale: P.get('scale') ?? undefined,
   bg: P.get('bg') === 'none' ? false : undefined,
+  clock: P.get('clock') ?? undefined,
   tz: P.get('tz') || localTz,
   invert: P.has('invert') ? P.get('invert') : matchMedia('(prefers-color-scheme: dark)').matches,
 });
@@ -70,6 +71,7 @@ function syncControls() {
   $('max').value = cfg.max;
   $('tz').value = cfg.tz;
   $('forks').checked = cfg.forks;
+  $('clock').checked = cfg.clock;
   $('invert').checked = cfg.invert;
   document.body.classList.toggle('inv', cfg.invert);
 }
@@ -86,6 +88,7 @@ function syncURL() {
   put('sort', cfg.sort, S.DEFAULTS.sort);
   put('max', String(cfg.max), String(S.DEFAULTS.max));
   put('forks', cfg.forks ? '1' : '', '');
+  put('clock', cfg.clock ? '' : '0', '');
   put('tz', cfg.tz, localTz);
   history.replaceState(null, '', url);
 }
@@ -103,6 +106,7 @@ $('sort').addEventListener('change', e => { update({ sort: e.target.value }); re
 $('max').addEventListener('change', e => { update({ max: e.target.value }); restart(); });
 $('forks').addEventListener('change', e => { update({ forks: e.target.checked }); restart(); });
 $('invert').addEventListener('change', e => update({ invert: e.target.checked }));
+$('clock').addEventListener('change', e => update({ clock: e.target.checked }));
 $('tz').addEventListener('change', e => {
   const v = e.target.value.trim();
   try { new Intl.DateTimeFormat('en', { timeZone: v || undefined }); update({ tz: v }); say(''); }
@@ -193,6 +197,7 @@ function renderSnippets() {
   if (cfg.sort !== D.sort) withs.push(['sort', cfg.sort]);
   if (cfg.max !== D.max) withs.push(['max_repos', cfg.max]);
   if (cfg.forks) withs.push(['forks', 'true']);
+  if (!cfg.clock) withs.push(['clock', 'false']);
   for (const k of ['windows', 'hold', 'move', 'fps', 'scale']) if (cfg[k] !== D[k]) withs.push([k, cfg[k]]);
   withs.push(['timezone', cfg.tz || 'UTC']);
 

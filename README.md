@@ -84,7 +84,8 @@ The circle shows your avatar (or any image you choose) through one of eight 1-bi
 | `sort` | `pushed` | `pushed`, `stars` or `name` |
 | `forks` | `false` | Include forked repos |
 | `max_repos` | `10` | Repos in the loop, `0` = all. Each one adds about 3 s and 130 KB |
-| `timezone` | `UTC` | IANA timezone for the clock, which shows when the GIF was rendered |
+| `clock` | `true` | Show the time the GIF was rendered, labeled LAST SYNC. `false` hides it |
+| `timezone` | `UTC` | IANA timezone for the clock |
 | `windows` | `24` | Windows visible in the queue |
 | `hold` / `move` | `2200` / `1000` | Milliseconds the front window stays still / the queue takes to advance |
 | `fps` | `15` | GIF frame rate |

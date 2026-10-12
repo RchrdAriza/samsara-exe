@@ -29,6 +29,7 @@ const DEFAULTS = {
   dot: 7,
   tz: '',            // IANA timezone for the clock ('' = local)
   bg: true,          // draw the avatar / custom image in the circle
+  clock: true,       // show the "last sync" time (when the frame/GIF was rendered)
 };
 const cfg = { ...DEFAULTS };
 
@@ -487,6 +488,14 @@ function drawWindow(repo, s, alpha, ph) {
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 let clockFmt = null;
 function drawClock(now) {
+  if (!cfg.clock) return;
+  // A GIF freezes the time it was rendered, so label it as such
+  ctx.font = FONT_BODY;
+  const lw = Math.ceil(ctx.measureText('LAST SYNC').width);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(30, 590, lw + 10, 18);
+  ctx.fillStyle = '#fff';
+  crispText('LAST SYNC', 35, 604);
   const p = Object.fromEntries(clockFmt.formatToParts(now).map(x => [x.type, x.value]));
   const h24 = +p.hour % 24;
   ctx.fillStyle = '#000';
@@ -560,7 +569,7 @@ function set(patch) {
       case 'scale': cfg.scale = num(v, 1, 4, DEFAULTS.scale); break;
       case 'max': cfg.max = num(v, 0, 500, DEFAULTS.max); break;
       case 'dot': cfg.dot = num(v, 3, 16, DEFAULTS.dot); break;
-      case 'invert': case 'forks': case 'bg': cfg[k] = bool(v); break;
+      case 'invert': case 'forks': case 'bg': case 'clock': cfg[k] = bool(v); break;
       case 'sort': cfg.sort = ['pushed', 'stars', 'name'].includes(v) ? v : DEFAULTS.sort; break;
       case 'fx': cfg.fx = EFFECTS[v] ? v : DEFAULTS.fx; break;
       case 'tz': cfg.tz = v || ''; break;
