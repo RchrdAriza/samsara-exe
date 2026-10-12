@@ -16,7 +16,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const KEYS = ['user', 'repos', 'fx', 'dot', 'image', 'sort', 'forks', 'max_repos', 'timezone',
+const KEYS = ['user', 'repos', 'fx', 'palette', 'dot', 'image', 'sort', 'forks', 'max_repos', 'timezone',
   'windows', 'hold', 'move', 'fps', 'scale', 'clock', 'output', 'dark_output', 'token'];
 
 function readOptions() {
@@ -163,7 +163,7 @@ let chrome, client;
 try {
   const params = {
     user: opts.user, repos: opts.repos, token: opts.token,
-    fx: opts.fx, dot: opts.dot, sort: opts.sort, forks: opts.forks, max: opts.max_repos,
+    fx: opts.fx, palette: opts.palette, dot: opts.dot, sort: opts.sort, forks: opts.forks, max: opts.max_repos,
     tz: opts.timezone, windows: opts.windows, hold: opts.hold, move: opts.move, fps: opts.fps, scale: opts.scale, clock: opts.clock,
     image: await resolveImage(opts.image),
   };

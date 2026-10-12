@@ -23,6 +23,7 @@ if (P.get('headless') === '1') {
 const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 S.set({
   fx: P.get('fx') ?? undefined,
+  palette: P.get('palette') ?? undefined,
   dot: P.get('dot') ?? undefined,
   sort: P.get('sort') ?? undefined,
   max: P.get('max') ?? undefined,
@@ -62,6 +63,8 @@ addEventListener('resize', fitCanvas);
 const say = msg => ($('status').textContent = msg);
 const qEl = $('q'), fxEl = $('fx'), dotEl = $('dot');
 for (const [k, label] of Object.entries(S.EFFECTS)) fxEl.add(new Option(label, k));
+const palEl = $('palette');
+for (const [k, p] of Object.entries(S.PALETTES)) palEl.add(new Option(p.name, k));
 
 function syncControls() {
   fxEl.value = cfg.fx;
@@ -73,7 +76,13 @@ function syncControls() {
   $('forks').checked = cfg.forks;
   $('clock').checked = cfg.clock;
   $('invert').checked = cfg.invert;
-  document.body.classList.toggle('inv', cfg.invert);
+  palEl.value = cfg.palette;
+  // the page wears the same two colors as the animation
+  const { ink, paper } = S.colors();
+  const css = c => `rgb(${c.join(',')})`;
+  document.documentElement.style.setProperty('--ink', css(ink));
+  document.documentElement.style.setProperty('--paper', css(paper));
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', css(paper));
 }
 
 function syncURL() {
@@ -84,6 +93,7 @@ function syncURL() {
   url.searchParams.delete('repos');
   if (q) url.searchParams.set(q.includes('/') ? 'repos' : 'user', q);
   put('fx', cfg.fx, S.DEFAULTS.fx);
+  put('palette', cfg.palette, S.DEFAULTS.palette);
   put('dot', String(cfg.dot), String(S.DEFAULTS.dot));
   put('sort', cfg.sort, S.DEFAULTS.sort);
   put('max', String(cfg.max), String(S.DEFAULTS.max));
@@ -101,6 +111,7 @@ function update(patch) {
 }
 
 fxEl.addEventListener('change', () => update({ fx: fxEl.value }));
+palEl.addEventListener('change', () => update({ palette: palEl.value }));
 dotEl.addEventListener('input', () => update({ dot: dotEl.value }));
 $('sort').addEventListener('change', e => { update({ sort: e.target.value }); restart(); });
 $('max').addEventListener('change', e => { update({ max: e.target.value }); restart(); });
@@ -115,13 +126,15 @@ $('tz').addEventListener('change', e => {
 
 addEventListener('keydown', ev => {
   if (ev.target.closest('input, select, textarea') || ev.metaKey || ev.ctrlKey || S.state.busy) return;
-  const k = ev.key.toLowerCase(), keys = Object.keys(S.EFFECTS);
-  if (k === 'e') update({ fx: keys[(keys.indexOf(cfg.fx) + (ev.shiftKey ? keys.length - 1 : 1)) % keys.length] });
+  const k = ev.key.toLowerCase();
+  const step = (list, cur) => list[(list.indexOf(cur) + (ev.shiftKey ? list.length - 1 : 1)) % list.length];
+  if (k === 'e') update({ fx: step(Object.keys(S.EFFECTS), cfg.fx) });
+  else if (k === 'p') update({ palette: step(Object.keys(S.PALETTES), cfg.palette) });
   else if (k === '[') update({ dot: cfg.dot - 1 });
   else if (k === ']') update({ dot: cfg.dot + 1 });
   else if (k === 'i') update({ invert: !cfg.invert });
   else return;
-  say(S.EFFECTS[cfg.fx] + ' · size ' + cfg.dot);
+  say(`${S.EFFECTS[cfg.fx]} · ${S.PALETTES[cfg.palette].name} · size ${cfg.dot}`);
 });
 
 addEventListener('dragover', ev => ev.preventDefault());
@@ -163,10 +176,10 @@ $('gifBtn').addEventListener('click', async () => {
   btn.disabled = true;
   try {
     const out = await S.encodeGif({ onProgress: p => say(`Rendering GIF… ${Math.round(p * 100)}%`) });
-    const blob = cfg.invert ? out.dark : out.light;
+    const blob = out.shown;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = cfg.invert ? 'samsara-dark.gif' : 'samsara.gif';
+    a.download = `samsara-${cfg.palette}${cfg.invert ? '-inverted' : ''}.gif`;
     a.click();
     say(`GIF ready · ${out.repos} repos · ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
   } catch (err) {
@@ -193,6 +206,7 @@ function renderSnippets() {
   const withs = [];
   if (q.includes('/')) withs.push(['repos', q.split(/[\s,]+/).filter(Boolean).join(',')]);
   if (cfg.fx !== D.fx) withs.push(['fx', cfg.fx]);
+  if (cfg.palette !== D.palette) withs.push(['palette', cfg.palette]);
   if (cfg.dot !== D.dot) withs.push(['dot', cfg.dot]);
   if (cfg.sort !== D.sort) withs.push(['sort', cfg.sort]);
   if (cfg.max !== D.max) withs.push(['max_repos', cfg.max]);

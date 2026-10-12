@@ -26,12 +26,40 @@ const DEFAULTS = {
   fps: 15,
   scale: 1,
   fx: 'halftone',
+  palette: 'classic',
   dot: 7,
   tz: '',            // IANA timezone for the clock ('' = local)
   bg: true,          // draw the avatar / custom image in the circle
   clock: true,       // show the "last sync" time (when the frame/GIF was rendered)
 };
 const cfg = { ...DEFAULTS };
+
+// Two-tone palettes: every pixel ends up as either ink or paper.
+const PALETTES = {
+  classic: { name: 'Classic', ink: '#000000', paper: '#ffffff' },
+  gameboy: { name: 'Game Boy', ink: '#0f380f', paper: '#9bbc0f' },
+  amber: { name: 'Amber CRT', ink: '#ffb000', paper: '#1c1000' },
+  phosphor: { name: 'Phosphor', ink: '#41ff7a', paper: '#04170a' },
+  cyanotype: { name: 'Cyanotype', ink: '#eaf2ff', paper: '#1d4e89' },
+  sepia: { name: 'Sepia', ink: '#3b2716', paper: '#f0e2c4' },
+  riso: { name: 'Riso', ink: '#e0453a', paper: '#f7f0e4' },
+  vapor: { name: 'Vapor', ink: '#ff5fa8', paper: '#1d0b3d' },
+  win95: { name: 'Windows 95', ink: '#ffffff', paper: '#008080' },
+};
+const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+const luma = ([r, g, b]) => (r * 299 + g * 587 + b * 114) / 1000;
+
+// { ink: [r,g,b], paper: [r,g,b] } for the current palette, optionally swapped
+function colors(invert = cfg.invert) {
+  const p = PALETTES[cfg.palette];
+  const ink = rgb(p.ink), paper = rgb(p.paper);
+  return invert ? { ink: paper, paper: ink } : { ink, paper };
+}
+// the variant with the darker background, for GitHub's dark theme
+function darkColors() {
+  const c = colors(false);
+  return luma(c.paper) < luma(c.ink) ? c : colors(true);
+}
 
 const EFFECTS = {
   halftone: 'Halftone',
@@ -509,15 +537,16 @@ function drawClock(now) {
 const bits = new Uint8Array(W * H); // 1 = ink
 function dither() {
   const img = ctx.getImageData(0, 0, W, H), d = img.data;
-  const ink = cfg.invert ? 255 : 0, paper = 255 - ink;
+  const { ink, paper } = colors();
   for (let y = 0, p = 0; y < H; y++) {
     const row = (y & 7) << 3;
     for (let x = 0; x < W; x++, p++) {
       const i = p << 2;
       const lum = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8;
       const on = lum <= BAYER[row | (x & 7)];
+      const c = on ? ink : paper;
       bits[p] = on ? 1 : 0;
-      d[i] = d[i + 1] = d[i + 2] = on ? ink : paper;
+      d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2];
       d[i + 3] = 255;
     }
   }
@@ -572,6 +601,7 @@ function set(patch) {
       case 'invert': case 'forks': case 'bg': case 'clock': cfg[k] = bool(v); break;
       case 'sort': cfg.sort = ['pushed', 'stars', 'name'].includes(v) ? v : DEFAULTS.sort; break;
       case 'fx': cfg.fx = EFFECTS[v] ? v : DEFAULTS.fx; break;
+      case 'palette': cfg.palette = PALETTES[v] ? v : DEFAULTS.palette; break;
       case 'tz': cfg.tz = v || ''; break;
     }
   }
@@ -696,13 +726,13 @@ class Gif1Bit {
   constructor(w, h) {
     this.w = w; this.h = h; this.parts = []; this.prev = null; this.pending = null;
   }
-  // the palette lives only in the header, so light and dark variants share every frame
-  header(invert) {
-    const { w, h } = this, ink = invert ? 255 : 0, paper = 255 - ink;
+  // the palette lives only in the header, so every color variant shares the frames
+  header({ ink, paper }) {
+    const { w, h } = this;
     return new Uint8Array([
       ...'GIF89a'.split('').map(c => c.charCodeAt(0)),
       w & 255, w >> 8, h & 255, h >> 8, 0x80, 0, 0,
-      paper, paper, paper, ink, ink, ink,
+      ...paper, ...ink,
       0x21, 0xff, 11, ...'NETSCAPE2.0'.split('').map(c => c.charCodeAt(0)), 3, 1, 0, 0, 0,
     ]);
   }
@@ -745,8 +775,9 @@ class Gif1Bit {
     this.flush(tMs);
     const tail = new Uint8Array([0x3b]);
     return {
-      light: new Blob([this.header(false), ...this.parts, tail], { type: 'image/gif' }),
-      dark: new Blob([this.header(true), ...this.parts, tail], { type: 'image/gif' }),
+      light: new Blob([this.header(colors(false)), ...this.parts, tail], { type: 'image/gif' }),
+      dark: new Blob([this.header(darkColors()), ...this.parts, tail], { type: 'image/gif' }),
+      shown: new Blob([this.header(colors()), ...this.parts, tail], { type: 'image/gif' }),
     };
   }
 }
@@ -824,7 +855,7 @@ const fontsReady = () => Promise.all([FONT_TITLE, FONT_BODY, FONT_CLOCK].map(f =
 set({});
 
 window.Samsara = {
-  W, H, DEFAULTS, EFFECTS, cfg, state,
+  W, H, DEFAULTS, EFFECTS, PALETTES, cfg, state, colors,
   mount, set, load, setImage, loadImage, render, encodeGif, exportForAction, fontsReady,
   cycleMs, repoCount: () => repos.length,
 };

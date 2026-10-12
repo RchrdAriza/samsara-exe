@@ -72,6 +72,25 @@ The circle shows your avatar (or any image you choose) through one of eight 1-bi
 
 `dot` (3–16) sets the size of the dots, lines, characters or pixels.
 
+## Palettes
+
+Everything is two colors, ink and paper. Pick a pair with `palette`:
+
+| `palette` | Ink / paper |
+|---|---|
+| `classic` | black / white |
+| `gameboy` | dark green / lime, like the 1989 Game Boy |
+| `amber` | amber on near-black, like an amber CRT |
+| `phosphor` | green phosphor terminal |
+| `cyanotype` | pale blue on blueprint blue |
+| `sepia` | brown on cream |
+| `riso` | red on off-white, like a risograph print |
+| `vapor` | pink on deep purple |
+| `win95` | white on the Windows 95 teal |
+
+For GitHub's dark theme, the dark GIF uses the palette with its darker color as the
+background. Palettes that already have a dark background look the same in both themes.
+
 ## Inputs
 
 | Input | Default | Description |
@@ -79,6 +98,7 @@ The circle shows your avatar (or any image you choose) through one of eight 1-bi
 | `user` | repo owner | User whose public repos are shown |
 | `repos` | | Comma-separated `owner/repo` list to show instead |
 | `fx` | `halftone` | Effect for the circle (see above) |
+| `palette` | `classic` | Two-tone colors (see above) |
 | `dot` | `7` | Effect size, 3–16 |
 | `image` | your avatar | Image for the circle: a path in your repo (add `actions/checkout` before this step) or a CORS-enabled URL |
 | `sort` | `pushed` | `pushed`, `stars` or `name` |
@@ -90,7 +110,7 @@ The circle shows your avatar (or any image you choose) through one of eight 1-bi
 | `hold` / `move` | `2200` / `1000` | Milliseconds the front window stays still / the queue takes to advance |
 | `fps` | `15` | GIF frame rate |
 | `scale` | `1` | `1` = 480×720, `2` = 960×1440 |
-| `output` / `dark_output` | `samsara.gif` / `samsara-dark.gif` | File names (`dark_output: false` skips the dark one) |
+| `output` / `dark_output` | `samsara.gif` / `samsara-dark.gif` | File names. The dark one is for GitHub's dark theme; `dark_output: false` skips it |
 | `push_to` | `samsara` | Branch for the GIFs. `false` leaves them in the workspace so you can commit them yourself |
 | `token` | `github.token` | Token to read repos and push |
 

@@ -10,7 +10,6 @@
   @font-face { font-family: 'VT323'; src: url('fonts/VT323-Regular.ttf') format('truetype'); }
 
   :root { --ink: #000; --paper: #fff; }
-  body.inv { --ink: #fff; --paper: #000; }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--paper); color: var(--ink); }
   body {
@@ -86,6 +85,7 @@
       </div>
 
       <div class="row"><label for="fx">Effect</label><select id="fx"></select></div>
+      <div class="row"><label for="palette">Palette</label><select id="palette"></select></div>
       <div class="row">
         <label for="dot">Size</label>
         <div class="range"><input type="range" id="dot" min="3" max="16"><span id="dotVal"></span></div>
@@ -105,7 +105,7 @@
         <div>
           <label><input type="checkbox" id="forks">Include forks</label><br>
           <label><input type="checkbox" id="clock">Show last sync time</label><br>
-          <label><input type="checkbox" id="invert">Dark (inverted)</label>
+          <label><input type="checkbox" id="invert">Invert colors</label>
         </div>
       </div>
 
@@ -114,7 +114,7 @@
         <button type="button" id="gifBtn">Download GIF</button>
       </div>
       <div id="status" role="status"></div>
-      <div class="hint">[E] effect · [ ] size · [I] invert · drop an image to preview it in the circle</div>
+      <div class="hint">[E] effect · [P] palette · [ ] size · [I] invert · drop an image to preview it in the circle</div>
     </div>
   </form>
 
