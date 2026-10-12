@@ -14,6 +14,12 @@ Each one approaches, gets clicked, dissolves, and is reborn at the back of the q
 
 </div>
 
+## Demo
+
+A minute-long tour of the configurator: every effect, every palette and every option.
+
+https://github.com/user-attachments/assets/115aa8e2-0c88-4a3a-9f5e-033689381090
+
 ## Add it to your profile README
 
 1. Open the **[configurator](https://rchrdariza.github.io/samsara-exe/)**, type your username and pick an effect.
