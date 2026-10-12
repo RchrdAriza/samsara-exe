@@ -193,6 +193,22 @@ function button(x, y, w, h, label, pressed) {
   ctx.fillRect(tx, ty + 2, Math.round(ctx.measureText(label[0]).width), 2); // underlined accelerator key
 }
 
+// Pixel icons for the stats line, so they don't depend on the system having
+// a font with ★ / ⑂ (GitHub's runners don't have one for the fork glyph).
+const STAR = [
+  '.....#.....', '.....#.....', '....###....', '....###....', '###########', '.#########.',
+  '..#######..', '...#####...', '..###.###..', '..##...##..', '.#.......#.',
+];
+const FORK = [
+  '##......##', '##......##', '##......##', '.##....##.', '..##..##..', '...####...',
+  '....##....', '....##....', '....##....', '...####...', '...####...',
+];
+function sprite(rows, x, y) {
+  for (let r = 0; r < rows.length; r++)
+    for (let c = 0; c < rows[r].length; c++)
+      if (rows[r][c] === '#') ctx.fillRect(x + c, y + r, 1, 1);
+}
+
 // 1-bit cursor: '#' = black, 'o' = white outline
 const CURSOR = [
   'o', 'oo', 'o#o', 'o##o', 'o###o', 'o####o', 'o#####o', 'o######o', 'o#######o',
@@ -434,8 +450,14 @@ function drawWindow(repo, s, alpha, ph) {
     ctx.font = FONT_BODY;
     const lines = wrap(repo.desc || 'Are you sure you want continue?', w - 64, 3);
     lines.forEach((l, i) => crispText(l, x + 54, y + 70 + i * 17));
-    const meta = [`★ ${repo.stars}`, `⑂ ${repo.forks}`, repo.lang].filter(Boolean).join('  ');
-    crispText(fitText(meta, w - 64), x + 54, y + 126);
+    let mx = x + 54;
+    const my = y + 126, mEnd = x + w - 10;
+    for (const [icon, n] of [[STAR, repo.stars], [FORK, repo.forks]]) {
+      sprite(icon, mx, my - 11);
+      crispText(String(n), mx + 15, my);
+      mx += 15 + Math.ceil(ctx.measureText(String(n)).width) + 12;
+    }
+    if (repo.lang && mx < mEnd - 16) crispText(fitText(repo.lang, mEnd - mx), mx, my);
 
     button(x + 28, y + h - 36, 76, 24, 'YES', pressed);
     button(x + w - 104, y + h - 36, 76, 24, 'NO', false);
