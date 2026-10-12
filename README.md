@@ -124,3 +124,7 @@ and [VT323](https://fonts.google.com/specimen/VT323), both under the SIL Open Fo
 ## License
 
 [MIT](LICENSE)
+
+---
+
+<p align="center">Made with ♥ by <a href="https://github.com/RchrdAriza">Richard Ariza</a></p>
