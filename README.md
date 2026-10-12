@@ -1,0 +1,125 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/RchrdAriza/samsara-exe/raw/samsara/samsara-dark.gif">
+  <img alt="samsara.exe demo" src="https://github.com/RchrdAriza/samsara-exe/raw/samsara/samsara.gif" width="360">
+</picture>
+
+# samsara.exe
+
+Your repos as an endless 1-bit queue of retro dialog windows.<br>
+Each one approaches, gets clicked, dissolves, and is reborn at the back of the queue.
+
+**[Try it with your username →](https://rchrdariza.github.io/samsara-exe/)**
+
+</div>
+
+## Add it to your profile README
+
+1. Open the **[configurator](https://rchrdariza.github.io/samsara-exe/)**, type your username and pick an effect.
+   Hit **Get it for my README** to get both snippets with your settings filled in.
+2. In your profile repo (`you/you`), create `.github/workflows/samsara.yml`:
+
+   ```yaml
+   name: samsara.exe
+
+   on:
+     schedule:
+       - cron: "0 0 * * *" # once a day
+     workflow_dispatch:
+
+   permissions:
+     contents: write
+
+   jobs:
+     samsara:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: RchrdAriza/samsara-exe@v1
+           with:
+             fx: atkinson
+             timezone: "America/Bogota"
+   ```
+
+3. Run it once from the **Actions** tab. From then on it refreshes every day.
+4. Paste this in your `README.md`, replacing `you` with your username:
+
+   ```html
+   <picture>
+     <source media="(prefers-color-scheme: dark)" srcset="https://github.com/you/you/raw/samsara/samsara-dark.gif">
+     <img alt="samsara.exe" src="https://github.com/you/you/raw/samsara/samsara.gif">
+   </picture>
+   ```
+
+The GIFs are force-pushed to a separate `samsara` branch as a single commit, so your
+history doesn't grow by a megabyte every day. Visitors with a dark GitHub theme get the
+inverted version automatically.
+
+## Effects
+
+The circle shows your avatar (or any image you choose) through one of eight 1-bit effects:
+
+| `fx` | Look |
+|---|---|
+| `halftone` | Newspaper dots on a 45° grid |
+| `atkinson` | The classic Macintosh dither |
+| `floyd` | Floyd–Steinberg error diffusion, fine and organic |
+| `bayer` | Ordered dither, Game Boy style |
+| `lines` | Wavy engraving lines that thicken in the shadows |
+| `cross` | Hand-drawn crosshatching |
+| `ascii` | Made of characters |
+| `threshold` | Pure black and white, stencil style |
+
+`dot` (3–16) sets the size of the dots, lines, characters or pixels.
+
+## Inputs
+
+| Input | Default | Description |
+|---|---|---|
+| `user` | repo owner | User whose public repos are shown |
+| `repos` | | Comma-separated `owner/repo` list to show instead |
+| `fx` | `halftone` | Effect for the circle (see above) |
+| `dot` | `7` | Effect size, 3–16 |
+| `image` | your avatar | Image for the circle: a path in your repo (add `actions/checkout` before this step) or a CORS-enabled URL |
+| `sort` | `pushed` | `pushed`, `stars` or `name` |
+| `forks` | `false` | Include forked repos |
+| `max_repos` | `10` | Repos in the loop, `0` = all. Each one adds about 3 s and 130 KB |
+| `timezone` | `UTC` | IANA timezone for the clock, which shows when the GIF was rendered |
+| `windows` | `24` | Windows visible in the queue |
+| `hold` / `move` | `2200` / `1000` | Milliseconds the front window stays still / the queue takes to advance |
+| `fps` | `15` | GIF frame rate |
+| `scale` | `1` | `1` = 480×720, `2` = 960×1440 |
+| `output` / `dark_output` | `samsara.gif` / `samsara-dark.gif` | File names (`dark_output: false` skips the dark one) |
+| `push_to` | `samsara` | Branch for the GIFs. `false` leaves them in the workspace so you can commit them yourself |
+| `token` | `github.token` | Token to read repos and push |
+
+## Run it locally
+
+Open `index.html` in a browser. There's no build step and no dependencies. Add `?clean=1`
+to the URL to show only the animation.
+
+To render the GIFs from the command line (needs Node 22+ and Chrome or Chromium):
+
+```sh
+node action/render.mjs --user octocat --fx atkinson --timezone Europe/Madrid
+```
+
+## How it works
+
+Everything is drawn on a 480×720 canvas and then snapped to pure black and white. Fading
+windows go through an 8×8 Bayer matrix, which is why they dissolve instead of turning
+gray. Text is rasterized separately with a hard threshold so it stays crisp. The GIF
+encoder is a small hand-written one: two colors, LZW, and only the rectangle that changed
+between frames. The light and dark GIFs share every frame and differ only in the palette.
+
+The action runs the same `index.html` in headless Chrome, so the GIF matches what you see
+in the configurator.
+
+## Credits
+
+Inspired by 1-bit "Windows Warning" illustration art. Fonts: [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P)
+and [VT323](https://fonts.google.com/specimen/VT323), both under the SIL Open Font License (see `fonts/`).
+
+## License
+
+[MIT](LICENSE)

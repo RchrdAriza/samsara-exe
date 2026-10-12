@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>samsara.exe</title>
+<meta name="description" content="Your GitHub repos as an endless 1-bit queue of retro dialog windows. An animated GIF for your profile README.">
+<style>
+  @font-face { font-family: 'Press Start 2P'; src: url('fonts/PressStart2P-Regular.ttf') format('truetype'); }
+  @font-face { font-family: 'VT323'; src: url('fonts/VT323-Regular.ttf') format('truetype'); }
+
+  :root { --ink: #000; --paper: #fff; }
+  body.inv { --ink: #fff; --paper: #000; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); }
+  body {
+    font: 20px/1.15 'VT323', monospace;
+    display: grid; grid-template-columns: minmax(0, 1fr) 400px; min-height: 100vh;
+  }
+  canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  #stage { position: sticky; top: 0; height: 100vh; display: grid; place-items: center; padding: 16px; }
+  #panel { padding: 16px; height: 100vh; overflow: auto; }
+
+  .win { border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: var(--paper); margin-bottom: 20px; }
+  .win > h1, .win > h2 {
+    margin: 0; padding: 7px 8px 6px; background: var(--ink); color: var(--paper);
+    font: 8px/1 'Press Start 2P', monospace; letter-spacing: .5px;
+  }
+  .win > .body { padding: 10px 12px 12px; }
+  .lede { margin: 0 0 10px; }
+
+  .row { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; align-items: center; margin: 8px 0; }
+  .row.inline { grid-template-columns: minmax(0, 1fr) auto; }
+  label { cursor: pointer; }
+  input, select, button, textarea { font: inherit; color: var(--ink); background: var(--paper); border-radius: 0; }
+  input[type=text], input[type=number], select { width: 100%; min-width: 0; border: 2px solid var(--ink); padding: 1px 6px; }
+  input[type=range] { width: 100%; accent-color: var(--ink); margin: 0; }
+  input[type=checkbox] { accent-color: var(--ink); width: 16px; height: 16px; margin: 0 6px 0 0; vertical-align: -2px; }
+  .range { display: grid; grid-template-columns: minmax(0, 1fr) 2.5ch; gap: 8px; align-items: center; }
+  button {
+    border: 2px solid var(--ink); padding: 2px 12px; cursor: pointer; box-shadow: 2px 2px 0 var(--ink);
+  }
+  button:active { transform: translate(2px, 2px); box-shadow: none; }
+  button:disabled { opacity: .5; cursor: wait; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .buttons button::first-letter { text-decoration: underline; }
+  #status { margin-top: 10px; min-height: 1.2em; }
+  .hint { opacity: .75; font-size: 18px; }
+
+  pre {
+    margin: 6px 0 4px; padding: 8px; border: 2px solid var(--ink); max-height: 300px; overflow: auto;
+    font: 17px/1.1 'VT323', monospace; white-space: pre;
+  }
+  .snip-head { display: flex; justify-content: space-between; align-items: end; gap: 8px; margin-top: 10px; }
+  .snip-head button { font-size: 18px; padding: 0 8px; }
+  ol { margin: 6px 0 0; padding-left: 22px; }
+  a { color: inherit; }
+  code { font-family: inherit; background: var(--ink); color: var(--paper); padding: 0 3px; }
+
+  body.clean { display: grid; grid-template-columns: 1fr; }
+  body.clean #panel { display: none; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 900px) {
+    body { grid-template-columns: minmax(0, 1fr); }
+    .win { margin-right: 4px; }
+    #stage { position: static; height: auto; padding: 16px 16px 0; }
+    #panel { height: auto; overflow: visible; }
+  }
+</style>
+</head>
+<body>
+<main id="stage"><canvas id="c" aria-label="Animated preview of the repo queue"></canvas></main>
+
+<aside id="panel">
+  <form class="win" id="form">
+    <h1>samsara.exe</h1>
+    <div class="body">
+      <p class="lede">Your repos approach, dissolve, and are reborn at the back of the queue. An animated GIF for your GitHub README.</p>
+
+      <div class="row inline">
+        <input type="text" id="q" placeholder="github user  or  owner/repo, owner/repo" autocomplete="off" spellcheck="false" aria-label="GitHub user or repo list">
+        <button type="submit">Load</button>
+      </div>
+
+      <div class="row"><label for="fx">Effect</label><select id="fx"></select></div>
+      <div class="row">
+        <label for="dot">Size</label>
+        <div class="range"><input type="range" id="dot" min="3" max="16"><span id="dotVal"></span></div>
+      </div>
+      <div class="row">
+        <label for="sort">Order</label>
+        <select id="sort">
+          <option value="pushed">Recently pushed</option>
+          <option value="stars">Most stars</option>
+          <option value="name">Name</option>
+        </select>
+      </div>
+      <div class="row"><label for="max">Repos</label><input type="number" id="max" min="0" max="100" title="0 = all of them"></div>
+      <div class="row"><label for="tz">Timezone</label><input type="text" id="tz" spellcheck="false" placeholder="UTC"></div>
+      <div class="row">
+        <span></span>
+        <div>
+          <label><input type="checkbox" id="forks">Include forks</label><br>
+          <label><input type="checkbox" id="invert">Dark (inverted)</label>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button type="button" id="getBtn">Get it for my README</button>
+        <button type="button" id="gifBtn">Download GIF</button>
+      </div>
+      <div id="status" role="status"></div>
+      <div class="hint">[E] effect · [ ] size · [I] invert · drop an image to preview it in the circle</div>
+    </div>
+  </form>
+
+  <section class="win hidden" id="install">
+    <h2>install.txt</h2>
+    <div class="body">
+      <ol>
+        <li>In your profile repo (<code id="profileRepo">you/you</code>) create <code>.github/workflows/samsara.yml</code>:</li>
+      </ol>
+      <div class="snip-head"><span class="hint">samsara.yml</span><button type="button" data-copy="yaml">Copy</button></div>
+      <pre id="yaml"></pre>
+      <ol start="2">
+        <li>Run it once from the <b>Actions</b> tab (it then refreshes every day).</li>
+        <li>Paste this in your <code>README.md</code>:</li>
+      </ol>
+      <div class="snip-head"><span class="hint">README.md</span><button type="button" data-copy="md">Copy</button></div>
+      <pre id="md"></pre>
+    </div>
+  </section>
+
+  <p class="hint">Open source · <a href="https://github.com/RchrdAriza/samsara-exe">github.com/RchrdAriza/samsara-exe</a></p>
+</aside>
+
+<script src="src/engine.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

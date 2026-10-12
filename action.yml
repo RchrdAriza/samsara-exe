@@ -1,0 +1,113 @@
+name: samsara.exe
+description: Your repos as an endless 1-bit queue of retro dialog windows. An animated GIF for your profile README.
+author: RchrdAriza
+branding:
+  icon: layers
+  color: gray-dark
+
+inputs:
+  user:
+    description: GitHub user whose public repos are shown.
+    default: ${{ github.repository_owner }}
+  repos:
+    description: Comma-separated list of owner/repo to show instead of all of the user's repos.
+    default: ''
+  fx:
+    description: "Effect for the image in the circle: halftone, atkinson, floyd, bayer, lines, cross, ascii or threshold."
+    default: halftone
+  dot:
+    description: Effect size, 3 to 16.
+    default: '7'
+  image:
+    description: Image for the circle instead of your avatar. A path in your repo (needs actions/checkout first) or a URL that allows CORS.
+    default: ''
+  sort:
+    description: "Queue order: pushed (most recent first), stars or name."
+    default: pushed
+  forks:
+    description: Include forked repos.
+    default: 'false'
+  max_repos:
+    description: How many repos go into the loop (0 = all). More repos means a longer, bigger GIF.
+    default: '10'
+  timezone:
+    description: IANA timezone for the clock, e.g. America/Bogota. The clock shows when the GIF was rendered.
+    default: UTC
+  windows:
+    description: Windows visible in the queue.
+    default: '24'
+  hold:
+    description: Milliseconds the front window stays still.
+    default: '2200'
+  move:
+    description: Milliseconds the queue takes to advance.
+    default: '1000'
+  fps:
+    description: GIF frames per second.
+    default: '15'
+  scale:
+    description: Pixel scale of the GIF (1 = 480x720, 2 = 960x1440).
+    default: '1'
+  output:
+    description: File name of the light GIF.
+    default: samsara.gif
+  dark_output:
+    description: File name of the dark (inverted) GIF. Set to 'false' to skip it.
+    default: samsara-dark.gif
+  push_to:
+    description: Branch the GIFs are force-pushed to, as a single commit so your history doesn't grow every day. Set to 'false' to only leave the files in the workspace.
+    default: samsara
+  token:
+    description: Token used to read repos and push the GIFs.
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Render GIFs
+      shell: bash
+      env:
+        SAMSARA_USER: ${{ inputs.user }}
+        SAMSARA_REPOS: ${{ inputs.repos }}
+        SAMSARA_FX: ${{ inputs.fx }}
+        SAMSARA_DOT: ${{ inputs.dot }}
+        SAMSARA_IMAGE: ${{ inputs.image }}
+        SAMSARA_SORT: ${{ inputs.sort }}
+        SAMSARA_FORKS: ${{ inputs.forks }}
+        SAMSARA_MAX_REPOS: ${{ inputs.max_repos }}
+        SAMSARA_TIMEZONE: ${{ inputs.timezone }}
+        SAMSARA_WINDOWS: ${{ inputs.windows }}
+        SAMSARA_HOLD: ${{ inputs.hold }}
+        SAMSARA_MOVE: ${{ inputs.move }}
+        SAMSARA_FPS: ${{ inputs.fps }}
+        SAMSARA_SCALE: ${{ inputs.scale }}
+        SAMSARA_OUTPUT: ${{ inputs.output }}
+        SAMSARA_DARK_OUTPUT: ${{ inputs.dark_output }}
+        SAMSARA_TOKEN: ${{ inputs.token }}
+      run: node "$GITHUB_ACTION_PATH/action/render.mjs"
+
+    - name: Push GIFs to the '${{ inputs.push_to }}' branch
+      if: inputs.push_to != 'false'
+      shell: bash
+      env:
+        BRANCH: ${{ inputs.push_to }}
+        OUT: ${{ inputs.output }}
+        DARK: ${{ inputs.dark_output }}
+        TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        dir="$(mktemp -d)"
+        cp -- "$OUT" "$dir/"
+        if [ -n "$DARK" ] && [ "$DARK" != "false" ]; then cp -- "$DARK" "$dir/"; fi
+        cd "$dir"
+        git init -q -b "$BRANCH"
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add -A
+        git commit -q -m "samsara.exe: rebirth $(date -u +%Y-%m-%dT%H:%MZ)"
+        git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$BRANCH"
+        echo "Pushed to https://github.com/${GITHUB_REPOSITORY}/tree/$BRANCH"
