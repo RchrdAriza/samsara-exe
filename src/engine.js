@@ -759,13 +759,14 @@ class Gif1Bit {
   constructor(w, h) {
     this.w = w; this.h = h; this.parts = []; this.prev = null; this.pending = null;
   }
-  // the palette lives only in the header, so every color variant shares the frames
+  // the palette lives only in the header, so every color variant shares the frames.
+  // 4 entries: paper, ink, and index 2 used as "transparent = unchanged pixel".
   header({ ink, paper }) {
     const { w, h } = this;
     return new Uint8Array([
       ...'GIF89a'.split('').map(c => c.charCodeAt(0)),
-      w & 255, w >> 8, h & 255, h >> 8, 0x80, 0, 0,
-      ...paper, ...ink,
+      w & 255, w >> 8, h & 255, h >> 8, 0x81, 0, 0,
+      ...paper, ...ink, ...paper, ...paper,
       0x21, 0xff, 11, ...'NETSCAPE2.0'.split('').map(c => c.charCodeAt(0)), 3, 1, 0, 0, 0,
     ]);
   }
@@ -789,19 +790,38 @@ class Gif1Bit {
     this.flush(tMs);
     const fw = x1 - x0 + 1, fh = y1 - y0 + 1, sub = new Uint8Array(fw * fh);
     for (let y = 0; y < fh; y++) sub.set(px.subarray((y0 + y) * w + x0, (y0 + y) * w + x0 + fw), y * fw);
-    this.pending = { x0, y0, fw, fh, sub, t: tMs };
+    // same rectangle with unchanged pixels marked transparent (index 2): long
+    // runs of "unchanged" compress far better than the pixels themselves
+    let tsub = null;
+    if (prev) {
+      tsub = new Uint8Array(fw * fh);
+      for (let y = 0, i = 0; y < fh; y++)
+        for (let x = 0, p = (y0 + y) * w + x0; x < fw; x++, i++, p++) tsub[i] = px[p] === prev[p] ? 2 : px[p];
+    }
+    this.pending = { x0, y0, fw, fh, sub, tsub, t: tMs };
     this.prev = px.slice();
   }
   flush(tMs) {
     const f = this.pending;
     if (!f) return;
     const delay = Math.max(2, Math.round(tMs / 10) - Math.round(f.t / 10));
+    // encode both ways and keep the smaller one, so this can never grow the file
+    let data = [];
+    lzw(f.sub, data);
+    let transparent = false;
+    if (f.tsub) {
+      const alt = [];
+      lzw(f.tsub, alt);
+      if (alt.length < data.length) { data = alt; transparent = true; }
+    }
     const out = [
-      0x21, 0xf9, 4, 0x04, delay & 255, delay >> 8, 0, 0,
+      0x21, 0xf9, 4, transparent ? 0x05 : 0x04, delay & 255, delay >> 8, transparent ? 2 : 0, 0,
       0x2c, f.x0 & 255, f.x0 >> 8, f.y0 & 255, f.y0 >> 8, f.fw & 255, f.fw >> 8, f.fh & 255, f.fh >> 8, 0,
     ];
-    lzw(f.sub, out);
-    this.parts.push(new Uint8Array(out));
+    const frame = new Uint8Array(out.length + data.length);
+    frame.set(out);
+    frame.set(data, out.length);
+    this.parts.push(frame);
     this.pending = null;
   }
   finish(tMs) {
