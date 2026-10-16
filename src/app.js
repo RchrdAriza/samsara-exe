@@ -40,6 +40,9 @@ S.set({
   queue: P.get('queue') ?? undefined,
   name: P.get('name') ?? undefined,
   nameText: P.get('name_text') ?? undefined,
+  nameStyle: P.get('name_style') ?? undefined,
+  nameDeco: P.get('name_deco') ?? undefined,
+  tagline: P.get('tagline') ?? undefined,
   tz: P.get('tz') || localTz,
   invert: P.has('invert') ? P.get('invert') : matchMedia('(prefers-color-scheme: dark)').matches,
 });
@@ -69,6 +72,8 @@ addEventListener('resize', fitCanvas);
 const say = msg => ($('status').textContent = msg);
 const qEl = $('q'), fxEl = $('fx'), dotEl = $('dot');
 for (const [k, label] of Object.entries(S.EFFECTS)) fxEl.add(new Option(label, k));
+for (const [k, label] of Object.entries(S.NAME_STYLES)) $('nameStyle').add(new Option(label, k));
+for (const [k, label] of Object.entries(S.NAME_DECOS)) $('nameDeco').add(new Option(label, k));
 const palEl = $('palette');
 for (const [k, p] of Object.entries(S.PALETTES)) palEl.add(new Option(p.name, k));
 
@@ -87,11 +92,15 @@ function syncControls() {
   $('queue').checked = cfg.queue;
   $('name').checked = cfg.name;
   $('nameText').value = cfg.nameText;
+  $('nameStyle').value = cfg.nameStyle;
+  $('nameDeco').value = cfg.nameDeco;
+  $('showTagline').checked = cfg.tagline !== false;
+  $('tagline').value = cfg.tagline || '';
   // the name only exists in landscape; the repo options only matter with the queue
   const land = cfg.layout === 'landscape';
-  $('nameRow').classList.toggle('hidden', !land);
-  $('nameToggle').classList.toggle('hidden', !land);
-  $('nameText').disabled = !cfg.name;
+  document.querySelectorAll('.land').forEach(el => el.classList.toggle('hidden', !land));
+  for (const id of ['nameText', 'nameStyle', 'nameDeco', 'showTagline']) $(id).disabled = !cfg.name;
+  $('tagline').disabled = !cfg.name || cfg.tagline === false;
   for (const id of ['sort', 'max', 'forks']) $(id).disabled = !cfg.queue;
   palEl.value = cfg.palette;
   // the page wears the same two colors as the animation
@@ -121,6 +130,9 @@ function syncURL() {
   put('queue', cfg.queue ? '' : '0', '');
   put('name', cfg.name ? '' : '0', '');
   put('name_text', cfg.nameText, '');
+  put('name_style', cfg.nameStyle, S.DEFAULTS.nameStyle);
+  put('name_deco', cfg.nameDeco, S.DEFAULTS.nameDeco);
+  put('tagline', cfg.tagline === false ? 'false' : cfg.tagline, '');
   put('tz', cfg.tz, localTz);
   history.replaceState(null, '', url);
 }
@@ -145,6 +157,10 @@ $('photo').addEventListener('change', e => update({ photo: e.target.checked }));
 $('queue').addEventListener('change', e => { update({ queue: e.target.checked }); restart(); });
 $('name').addEventListener('change', e => update({ name: e.target.checked }));
 $('nameText').addEventListener('change', e => update({ nameText: e.target.value }));
+$('nameStyle').addEventListener('change', e => update({ nameStyle: e.target.value }));
+$('nameDeco').addEventListener('change', e => update({ nameDeco: e.target.value }));
+$('showTagline').addEventListener('change', e => update({ tagline: e.target.checked ? $('tagline').value : false }));
+$('tagline').addEventListener('change', e => update({ tagline: e.target.value }));
 $('tz').addEventListener('change', e => {
   const v = e.target.value.trim();
   try { new Intl.DateTimeFormat('en', { timeZone: v || undefined }); update({ tz: v }); say(''); }
@@ -274,7 +290,13 @@ function renderSnippets() {
   if (!cfg.photo) withs.push(['photo', 'false']);
   if (!cfg.queue) withs.push(['queue', 'false']);
   if (cfg.layout === 'landscape' && !cfg.name) withs.push(['name', 'false']);
-  if (cfg.layout === 'landscape' && cfg.name && cfg.nameText) withs.push(['name_text', cfg.nameText]);
+  if (cfg.layout === 'landscape' && cfg.name) {
+    if (cfg.nameText) withs.push(['name_text', cfg.nameText]);
+    if (cfg.nameStyle !== D.nameStyle) withs.push(['name_style', cfg.nameStyle]);
+    if (cfg.nameDeco !== D.nameDeco) withs.push(['name_deco', cfg.nameDeco]);
+    if (cfg.tagline === false) withs.push(['tagline', 'false']);
+    else if (cfg.tagline) withs.push(['tagline', cfg.tagline]);
+  }
   for (const k of ['windows', 'hold', 'move', 'fps', 'scale']) if (cfg[k] !== D[k]) withs.push([k, cfg[k]]);
   withs.push(['timezone', cfg.tz || 'UTC']);
 

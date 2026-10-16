@@ -36,6 +36,9 @@ const DEFAULTS = {
   queue: true,       // draw the repo queue
   name: true,        // draw the user's name (landscape only)
   nameText: '',      // custom name ('' = GitHub display name, else login)
+  nameStyle: 'pixel', // pixel | block | shade | outline
+  nameDeco: 'none',  // none | bars | columns
+  tagline: '',       // line under the name ('' = GitHub bio, false = hidden)
 };
 const cfg = { ...DEFAULTS };
 
@@ -90,6 +93,7 @@ const DEMO = [
 
 let allRepos = DEMO;
 let profileName = 'samsara.exe'; // GitHub display name (or login) of the loaded user
+let profileBio = 'endless 1-bit queue';
 let repos = DEMO;
 let image = null;
 let cv = null, ctx = null;
@@ -116,7 +120,7 @@ const LAYOUTS = {
     halo: { x: 292, y: 190, r: 150 },
     waterDx: -50, waterDy: -132,
     clock: { x: 500, y: 400 },
-    nameBox: { x: 490, y: 50, w: 440, h: 320 },
+    nameBox: { x: 465, y: 30, w: 480, h: 360 },
   },
 };
 let LY = LAYOUTS.portrait;
@@ -506,12 +510,17 @@ function applyEffect(T, w, h, clear) {
   return out;
 }
 
-// The name is set in Press Start 2P, as large as fits the box in up to three
-// lines (words only break when nothing else fits), then goes through the same effect.
+// ---------------------------------------------------------------------------
+// The name (landscape only): drawn in one of NAME_STYLES, with an optional
+// decoration and a tagline (the GitHub bio by default), stacked and centered
+// in LY.nameBox. Everything ends up as black ink on a transparent canvas.
+// ---------------------------------------------------------------------------
+const NAME_STYLES = { pixel: 'Pixel (uses the effect)', block: 'Block', shade: 'Shade', outline: 'Outline' };
+const NAME_DECOS = { none: 'None', bars: 'Bars', columns: 'Columns' };
 const nameCache = new Map();
-function nameLines(m, text, size, maxW, breakWords) {
-  m.font = `${size}px "Press Start 2P"`;
-  const fits = t => m.measureText(t).width <= maxW;
+
+// greedy word wrap; words only break when `breakWords` (else null if one doesn't fit)
+function wrapWith(text, fits, breakWords) {
   const lines = [];
   let cur = '';
   for (const word of text.split(/\s+/).filter(Boolean)) {
@@ -522,55 +531,237 @@ function nameLines(m, text, size, maxW, breakWords) {
     if (!breakWords && !fits(word)) return null;
     for (const ch of word) {
       if (fits(cur + ch)) cur += ch;
-      else { lines.push(cur); cur = ch; }
+      else { if (cur) lines.push(cur); cur = ch; }
     }
   }
   if (cur) lines.push(cur);
   return lines;
 }
 
-function buildName(text, box) {
-  const c = document.createElement('canvas');
-  c.width = box.w; c.height = box.h;
-  const m = c.getContext('2d', { willReadFrequently: true });
-  const LH = 1.35, MAX_LINES = 3, MIN = 24;
-  const fit = (size, breakWords) => {
-    const lines = nameLines(m, text, size, box.w, breakWords);
-    return lines && lines.length <= MAX_LINES && lines.length * size * LH <= box.h ? lines : null;
-  };
-  let size = 96, lines = null;
+// first (largest) size, from `sizes`, whose wrap into at most 3 lines fits
+function fitLines(text, sizes, widthOk, heightOk) {
   for (const breakWords of [false, true]) {
-    for (size = 96; size >= MIN && !(lines = fit(size, breakWords)); size -= 4);
-    if (lines) break;
+    for (const size of sizes) {
+      const lines = wrapWith(text, t => widthOk(t, size), breakWords);
+      if (lines && lines.length <= 3 && heightOk(lines.length, size)) return { lines, size };
+    }
   }
-  if (!lines) lines = nameLines(m, text, (size = MIN), box.w, true);
-  if (lines.length > MAX_LINES) {
-    lines = lines.slice(0, MAX_LINES);
-    let last = lines[MAX_LINES - 1];
-    while (last.length > 1 && m.measureText(last + '…').width > box.w) last = last.slice(0, -1);
-    lines[MAX_LINES - 1] = last + '…';
-  }
-  m.fillStyle = '#fff';
-  m.fillRect(0, 0, box.w, box.h);
-  m.fillStyle = '#000';
-  m.textBaseline = 'alphabetic';
-  const top = Math.round((box.h - lines.length * size * LH) / 2);
-  lines.forEach((l, i) => m.fillText(l, 0, top + Math.round(i * size * LH + size)));
+  const size = sizes[sizes.length - 1];
+  return { lines: wrapWith(text, t => widthOk(t, size), true).slice(0, 3), size };
+}
 
-  const px = m.getImageData(0, 0, box.w, box.h).data, N = box.w * box.h;
+// a canvas whose ink pixels are set with rect(); toCanvas() makes it black on transparent
+function inkCanvas(w, h) {
+  const ink = new Uint8Array(w * h);
+  return {
+    w, h, ink,
+    rect(x, y, rw, rh, level = 1) {
+      for (let j = Math.max(0, y); j < Math.min(h, y + rh); j++)
+        for (let i = Math.max(0, x); i < Math.min(w, x + rw); i++)
+          if (level >= 1 || BAYER[((j & 7) << 3) | (i & 7)] < level * 256) ink[j * w + i] = 1;
+    },
+    toCanvas() {
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const g = c.getContext('2d');
+      const id = g.createImageData(w, h);
+      for (let p = 0; p < w * h; p++) if (ink[p]) id.data[(p << 2) + 3] = 255;
+      g.putImageData(id, 0, 0);
+      return c;
+    },
+  };
+}
+
+// Pixel style: the name in Press Start 2P, through the active effect.
+function pixelName(text, maxW, maxH) {
+  const c = document.createElement('canvas');
+  const m = c.getContext('2d', { willReadFrequently: true });
+  const LH = 1.35, font = size => `${size}px "Press Start 2P"`;
+  const sizes = [];
+  for (let sz = 96; sz >= 24; sz -= 4) sizes.push(sz);
+  const pick = fitLines(text, sizes,
+    (t, sz) => { m.font = font(sz); return m.measureText(t).width <= maxW; },
+    (n, sz) => n * sz * LH <= maxH);
+  const w = maxW, h = Math.ceil(pick.lines.length * pick.size * LH);
+  c.width = w; c.height = h;
+  m.fillStyle = '#fff';
+  m.fillRect(0, 0, w, h);
+  m.fillStyle = '#000';
+  m.font = font(pick.size);
+  pick.lines.forEach((l, i) => {
+    const x = Math.round((w - m.measureText(l).width) / 2);
+    m.fillText(l, x, Math.round(i * pick.size * LH + pick.size * 1.1));
+  });
+  const px = m.getImageData(0, 0, w, h).data, N = w * h;
   const T = new Float32Array(N);
   for (let p = 0; p < N; p++) {
     const i = p << 2;
     T[p] = ((px[i] * 77 + px[i + 1] * 150 + px[i + 2] * 29) >> 8) / 255;
   }
-  return applyEffect(T, box.w, box.h, true);
+  return applyEffect(T, w, h, true);
 }
 
-function nameFor(text, box) {
-  const key = [text, cfg.fx, cfg.dot, box.w, box.h].join('|');
+// 1-bit rows of a line of text, sampled from Press Start 2P (an 8x8 pixel font)
+// at 2x so every glyph pixel lands on a whole cell.
+let glyphRows = null; // [top, bottom) rows that any glyph uses, incl. accents and descenders
+function glyphBits(text) {
+  const c = document.createElement('canvas');
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const FONT = '16px "Press Start 2P"';
+  g.font = FONT;
+  const w = Math.max(1, Math.ceil(g.measureText(text).width / 2));
+  c.width = w * 2; c.height = 40;
+  g.font = FONT;
+  g.fillText(text, 0, 24);
+  const d = g.getImageData(0, 0, c.width, c.height).data;
+  const on = new Uint8Array(w * 20);
+  for (let y = 0; y < 20; y++)
+    for (let x = 0; x < w; x++) on[y * w + x] = d[((y * 2 + 1) * c.width + x * 2 + 1) * 4 + 3] >= 128 ? 1 : 0;
+  return { w, on };
+}
+function rowRange() {
+  if (!glyphRows) {
+    const { w, on } = glyphBits('ÁÉÑgjpqy|');
+    let top = 20, bottom = 0;
+    for (let y = 0; y < 20; y++) for (let x = 0; x < w; x++) if (on[y * w + x]) { top = Math.min(top, y); bottom = y + 1; }
+    glyphRows = [top, Math.max(top + 1, bottom)];
+  }
+  return glyphRows;
+}
+
+// Block styles: every glyph pixel becomes a k×k cell. `block` and `shade` add a
+// drop shadow drawn as a double line (like ANSI Shadow's ═║╗╚), `outline` keeps
+// only the double-line contour.
+function blockName(text, maxW, maxH, style) {
+  const [top, bottom] = rowRange(), gh = bottom - top;
+  const cellsW = t => glyphBits(t).w + 1, cellsH = n => n * gh + (n - 1) * 2 + 1;
+  const sizes = [];
+  for (let k = 12; k >= 2; k--) sizes.push(k);
+  const { lines, size: k } = fitLines(text, sizes, (t, k) => cellsW(t) * k <= maxW, (n, k) => cellsH(n) * k <= maxH);
+
+  // mask of the whole name, lines centered
+  const bits = lines.map(glyphBits);
+  const mw = Math.max(...bits.map(b => b.w)) + 1, mh = cellsH(lines.length);
+  const M = new Uint8Array(mw * mh);
+  bits.forEach((b, li) => {
+    const ox = Math.floor((mw - 1 - b.w) / 2), oy = li * (gh + 2);
+    for (let y = 0; y < gh; y++) for (let x = 0; x < b.w; x++) if (b.on[(y + top) * b.w + x]) M[(oy + y) * mw + ox + x] = 1;
+  });
+  const inM = (x, y) => x >= 0 && y >= 0 && x < mw && y < mh && M[y * mw + x] === 1;
+  const inS = (x, y) => inM(x - 1, y - 1);
+
+  const out = inkCanvas(mw * k, mh * k), t = Math.max(1, Math.round(k / 6));
+  // double line along the edges of `cell` that border cells outside `inside`
+  const contour = (x, y, inside) => {
+    const X = x * k, Y = y * k;
+    if (!inside(x, y - 1)) { out.rect(X, Y, k, t); out.rect(X, Y + 2 * t, k, t); }
+    if (!inside(x, y + 1)) { out.rect(X, Y + k - t, k, t); out.rect(X, Y + k - 3 * t, k, t); }
+    if (!inside(x - 1, y)) { out.rect(X, Y, t, k); out.rect(X + 2 * t, Y, t, k); }
+    if (!inside(x + 1, y)) { out.rect(X + k - t, Y, t, k); out.rect(X + k - 3 * t, Y, t, k); }
+  };
+  for (let y = 0; y < mh; y++) {
+    for (let x = 0; x < mw; x++) {
+      if (style === 'outline') {
+        if (inM(x, y)) contour(x, y, inM);
+        continue;
+      }
+      if (inM(x, y)) {
+        // shade: light at the top of each glyph row, solid at the bottom
+        const row = y % (gh + 2);
+        const level = style === 'shade' ? 0.3 + 0.75 * (row / Math.max(1, gh - 1)) : 1;
+        out.rect(x * k, y * k, k, k, level);
+      } else if (inS(x, y)) {
+        contour(x, y, (cx, cy) => inS(cx, cy) || inM(cx, cy));
+      }
+    }
+  }
+  return out.toCanvas();
+}
+
+// Tagline in VT323, thresholded so it stays crisp. Up to 2 lines.
+function taglineCanvas(text, maxW, spaced) {
+  const c = document.createElement('canvas');
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const FONT = '24px VT323', LH = 24;
+  g.font = FONT;
+  const fits = s => g.measureText(s).width <= maxW;
+  const wide = text.split('').join(' ');
+  let lines;
+  if (spaced && fits(wide)) lines = [wide];
+  else if (!spaced && fits(`── ${text} ──`)) lines = [`── ${text} ──`];
+  else {
+    lines = wrapWith(text, fits, true);
+    if (lines.length > 2) {
+      lines = lines.slice(0, 2);
+      let last = lines[1];
+      while (last.length > 1 && !fits(last + '…')) last = last.slice(0, -1);
+      lines[1] = last + '…';
+    }
+  }
+  c.width = maxW; c.height = lines.length * LH + 6;
+  g.font = FONT;
+  lines.forEach((l, i) => g.fillText(l, Math.round((maxW - g.measureText(l).width) / 2), (i + 1) * LH - 4));
+  const id = g.getImageData(0, 0, c.width, c.height), d = id.data;
+  for (let i = 3; i < d.length; i += 4) { d[i] = d[i] >= 110 ? 255 : 0; d[i - 3] = d[i - 2] = d[i - 1] = 0; }
+  g.putImageData(id, 0, 0);
+  return c;
+}
+
+// ░▒▓████▓▒░ across the box
+function barCanvas(w) {
+  const h = 8, out = inkCanvas(w, h), seg = 12;
+  [0.25, 0.5, 0.75].forEach((lv, i) => {
+    out.rect(i * seg, 0, seg, h, lv);
+    out.rect(w - (i + 1) * seg, 0, seg, h, lv);
+  });
+  out.rect(3 * seg, 0, w - 6 * seg, h);
+  return out.toCanvas();
+}
+
+// a "( )" of shaded cells on each side, as tall as the name
+function columnsCanvas(w, h) {
+  const out = inkCanvas(w, h), ck = 8, n = Math.max(3, Math.floor(h / ck));
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n, bulge = Math.sin(Math.PI * t);
+    const dx = Math.round(bulge * 2) * ck, lv = 0.3 + 0.7 * bulge;
+    const y = Math.round(i * h / n);
+    out.rect(2 * ck - dx + ck, y, 2 * ck, ck - 1, lv);              // left
+    out.rect(w - 4 * ck + dx - ck, y, 2 * ck, ck - 1, lv);          // right
+  }
+  return out.toCanvas();
+}
+
+function buildName(text, tagline, box) {
+  const style = cfg.nameStyle, deco = cfg.nameDeco;
+  const GAP = 18, SIDE = deco === 'columns' ? 64 : 0;
+  const tag = tagline ? taglineCanvas(tagline, box.w, style === 'shade') : null;
+  const bar = deco === 'bars' ? barCanvas(box.w) : null;
+  const reserved = (tag ? tag.height + GAP : 0) + (bar ? 2 * (bar.height + GAP) : 0);
+  const maxW = box.w - 2 * SIDE, maxH = Math.max(40, box.h - reserved);
+  const name = style === 'pixel' ? pixelName(text, maxW, maxH) : blockName(text, maxW, maxH, style);
+
+  const parts = [bar, name, tag, bar].filter(Boolean);
+  const total = parts.reduce((a, c) => a + c.height, 0) + GAP * (parts.length - 1);
+  const c = document.createElement('canvas');
+  c.width = box.w; c.height = box.h;
+  const g = c.getContext('2d');
+  let y = Math.max(0, Math.round((box.h - total) / 2));
+  for (const part of parts) {
+    g.drawImage(part, Math.round((box.w - part.width) / 2), y);
+    if (part === name && deco === 'columns') {
+      const cols = columnsCanvas(name.width + 2 * SIDE, name.height);
+      g.drawImage(cols, Math.round((box.w - cols.width) / 2), y);
+    }
+    y += part.height + GAP;
+  }
+  return c;
+}
+
+function nameFor(text, tagline, box) {
+  const key = [text, tagline, cfg.nameStyle, cfg.nameDeco, cfg.fx, cfg.dot, box.w, box.h].join('|');
   let canvas = nameCache.get(key);
   if (!canvas) {
-    canvas = buildName(text, box);
+    canvas = buildName(text, tagline, box);
     nameCache.set(key, canvas);
     if (nameCache.size > 32) nameCache.delete(nameCache.keys().next().value);
   }
@@ -578,11 +769,12 @@ function nameFor(text, box) {
 }
 
 const displayName = () => (cfg.nameText || profileName).trim();
+const displayTagline = () => (cfg.tagline === false ? '' : (cfg.tagline || profileBio).replace(/\s+/g, ' ').trim());
 
 function drawName() {
   const box = LY.nameBox, text = displayName();
   if (!box || !cfg.name || !text) return;
-  ctx.drawImage(nameFor(text, box), box.x, box.y);
+  ctx.drawImage(nameFor(text, displayTagline(), box), box.x, box.y);
 }
 
 function drawBackground() {
@@ -767,6 +959,9 @@ function set(patch) {
       case 'photo': case 'queue': case 'name': cfg[k] = bool(v); break;
       case 'layout': cfg.layout = LAYOUTS[v] ? v : DEFAULTS.layout; break;
       case 'nameText': cfg.nameText = String(v).trim().slice(0, 60); break;
+      case 'nameStyle': cfg.nameStyle = NAME_STYLES[v] ? v : DEFAULTS.nameStyle; break;
+      case 'nameDeco': cfg.nameDeco = NAME_DECOS[v] ? v : DEFAULTS.nameDeco; break;
+      case 'tagline': cfg.tagline = v === false || v === 'false' ? false : String(v).trim().slice(0, 120); break;
       case 'sort': cfg.sort = ['pushed', 'stars', 'name'].includes(v) ? v : DEFAULTS.sort; break;
       case 'fx': cfg.fx = EFFECTS[v] ? v : DEFAULTS.fx; break;
       case 'palette': cfg.palette = PALETTES[v] ? v : DEFAULTS.palette; break;
@@ -822,6 +1017,7 @@ async function load(query, { token = '', image: customImage = '' } = {}) {
   if (!query) {
     list = DEMO;
     profileName = 'samsara.exe';
+    profileBio = 'endless 1-bit queue';
   } else if (query.includes('/')) {
     const names = query.split(/[\s,]+/).filter(Boolean)
       .map(s => s.replace(/^https?:\/\/github\.com\//, '').replace(/(\.git)?\/?$/, ''));
@@ -829,6 +1025,7 @@ async function load(query, { token = '', image: customImage = '' } = {}) {
     list = res.map(toRepo);
     avatar = res[0].owner.avatar_url;
     profileName = res[0].owner.login;
+    profileBio = '';
   } else {
     // the display name is only decoration: if it fails, fall back to the login
     const profile = gh(`/users/${encodeURIComponent(query)}`, token).catch(() => null);
@@ -843,6 +1040,7 @@ async function load(query, { token = '', image: customImage = '' } = {}) {
     avatar = all[0].owner.avatar_url;
     const prof = await profile;
     profileName = prof?.name || all[0].owner.login;
+    profileBio = prof?.bio || '';
   }
   allRepos = list;
   applyRepoFilters();
@@ -1050,7 +1248,7 @@ const fontsReady = () => Promise.all([FONT_TITLE, FONT_BODY, FONT_CLOCK].map(f =
 set({});
 
 window.Samsara = {
-  get W() { return W; }, get H() { return H; }, DEFAULTS, EFFECTS, PALETTES, TITLE_GLYPHS, cfg, state, colors,
+  get W() { return W; }, get H() { return H; }, DEFAULTS, EFFECTS, NAME_STYLES, NAME_DECOS, PALETTES, TITLE_GLYPHS, cfg, state, colors,
   mount, set, load, setImage, loadImage, render, encodeGif, exportForAction, fontsReady,
   cycleMs, repoCount: () => repos.length,
 };

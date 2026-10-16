@@ -90,6 +90,17 @@ repo windows (the GIF becomes a single static frame) and, in landscape, `name: f
 hides the name. The name is your GitHub display name, or your login if you don't have
 one; `name_text` replaces it with any text.
 
+| `name_style` | Look |
+|---|---|
+| `pixel` | Pixel font through the circle's effect (halftone, ascii…) |
+| `block` | Solid blocks with a double-line drop shadow, like ANSI Shadow |
+| `shade` | The same blocks with a `░▒▓█` gradient from top to bottom |
+| `outline` | Only the double-line contour |
+
+`name_deco` adds `bars` (`░▒▓██▓▒░` above and below) or `columns` (shaded brackets on
+each side). Under the name goes a tagline: your GitHub bio by default, any text with
+`tagline`, or nothing with `tagline: false`.
+
 ## Palettes
 
 Everything is two colors, ink and paper. Pick a pair with `palette`:
@@ -127,6 +138,9 @@ background. Palettes that already have a dark background look the same in both t
 | `queue` | `true` | Show the repo windows. `false` makes a static GIF without them |
 | `name` | `true` | Show your name (landscape only). `false` hides it |
 | `name_text` | your GitHub name | Text to show instead of your name (landscape only) |
+| `name_style` | `pixel` | `pixel`, `block`, `shade` or `outline` (see above) |
+| `name_deco` | `none` | `none`, `bars` or `columns` |
+| `tagline` | your GitHub bio | Line under the name. `false` hides it |
 | `clock` | `true` | Show the time the GIF was rendered, labeled LAST SYNC. `false` hides it |
 | `timezone` | `UTC` | IANA timezone for the clock |
 | `windows` | `24` | Windows visible in the queue |

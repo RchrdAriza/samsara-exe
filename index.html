@@ -103,7 +103,10 @@
           <option value="landscape">Landscape</option>
         </select>
       </div>
-      <div class="row" id="nameRow"><label for="nameText">Name</label><input type="text" id="nameText" maxlength="60" spellcheck="false" placeholder="GitHub name"></div>
+      <div class="row land"><label for="nameText">Name</label><input type="text" id="nameText" maxlength="60" spellcheck="false" placeholder="GitHub name"></div>
+      <div class="row land"><label for="nameStyle">Name style</label><select id="nameStyle"></select></div>
+      <div class="row land"><label for="nameDeco">Decoration</label><select id="nameDeco"></select></div>
+      <div class="row land"><label for="tagline">Tagline</label><input type="text" id="tagline" maxlength="120" spellcheck="false" placeholder="GitHub bio"></div>
       <div class="row"><label for="fx">Effect</label><select id="fx"></select></div>
       <div class="row"><label for="palette">Palette</label><select id="palette"></select></div>
       <div class="row">
@@ -124,7 +127,8 @@
         <span></span>
         <div>
           <label><input type="checkbox" id="photo">Show photo</label><br>
-          <label id="nameToggle"><input type="checkbox" id="name">Show name<br></label>
+          <label class="land"><input type="checkbox" id="name">Show name<br></label>
+          <label class="land"><input type="checkbox" id="showTagline">Show tagline<br></label>
           <label><input type="checkbox" id="queue">Show repos</label><br>
           <label><input type="checkbox" id="forks">Include forks</label><br>
           <label><input type="checkbox" id="clock">Show last sync time</label><br>
