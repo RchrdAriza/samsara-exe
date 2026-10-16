@@ -18,7 +18,11 @@
   }
   canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
   #stage { position: sticky; top: 0; height: 100vh; display: grid; place-items: center; padding: 16px; }
-  #panel { padding: 16px; height: 100vh; overflow: auto; }
+  /* the windows scroll; the credit stays pinned at the bottom of the panel */
+  #panel { padding: 16px 16px 10px; height: 100vh; display: flex; flex-direction: column; }
+  #wins { flex: 1; min-height: 0; overflow: auto; padding: 0 4px 4px 0; }
+  #credit { flex: none; margin: 10px 0 0; }
+  .checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; margin: 10px 0 0; }
 
   .win { border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: var(--paper); margin-bottom: 20px; }
   .titlebar { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--ink); padding: 3px 3px 3px 8px; }
@@ -77,7 +81,8 @@
     body { grid-template-columns: minmax(0, 1fr); }
     .win { margin-right: 4px; }
     #stage { position: static; height: auto; padding: 16px 16px 0; }
-    #panel { height: auto; overflow: visible; }
+    #panel { height: auto; display: block; }
+    #wins { overflow: visible; }
   }
 </style>
 </head>
@@ -86,6 +91,7 @@
 <main id="stage"><canvas id="c" aria-label="Animated preview of the repo queue"></canvas></main>
 
 <aside id="panel">
+<div id="wins">
   <form class="win" id="form">
     <div class="titlebar"><h1>samsara.exe</h1><span class="tb" data-close="max"></span></div>
     <div class="body">
@@ -96,6 +102,17 @@
         <button type="submit">Load</button>
       </div>
 
+      <div class="row">
+        <label for="layout">Layout</label>
+        <select id="layout">
+          <option value="portrait">Portrait</option>
+          <option value="landscape">Landscape</option>
+        </select>
+      </div>
+      <div class="row land"><label for="nameText">Name</label><input type="text" id="nameText" maxlength="60" spellcheck="false" placeholder="GitHub name"></div>
+      <div class="row land"><label for="nameStyle">Name style</label><select id="nameStyle"></select></div>
+      <div class="row land"><label for="nameDeco">Decoration</label><select id="nameDeco"></select></div>
+      <div class="row land"><label for="tagline">Tagline</label><input type="text" id="tagline" maxlength="120" spellcheck="false" placeholder="GitHub bio"></div>
       <div class="row"><label for="fx">Effect</label><select id="fx"></select></div>
       <div class="row"><label for="palette">Palette</label><select id="palette"></select></div>
       <div class="row">
@@ -112,13 +129,14 @@
       </div>
       <div class="row"><label for="max">Repos</label><input type="number" id="max" min="0" max="100" title="0 = all of them"></div>
       <div class="row"><label for="tz">Timezone</label><input type="text" id="tz" spellcheck="false" placeholder="UTC"></div>
-      <div class="row">
-        <span></span>
-        <div>
-          <label><input type="checkbox" id="forks">Include forks</label><br>
-          <label><input type="checkbox" id="clock">Show last sync time</label><br>
-          <label><input type="checkbox" id="invert">Invert colors</label>
-        </div>
+      <div class="checks">
+        <label><input type="checkbox" id="photo">Show photo</label>
+        <label><input type="checkbox" id="queue">Show repos</label>
+        <label class="land"><input type="checkbox" id="name">Show name</label>
+        <label class="land"><input type="checkbox" id="showTagline">Show tagline</label>
+        <label><input type="checkbox" id="forks">Include forks</label>
+        <label><input type="checkbox" id="clock">Show last sync</label>
+        <label><input type="checkbox" id="invert">Invert colors</label>
       </div>
 
       <div class="buttons">
@@ -147,7 +165,8 @@
     </div>
   </section>
 
-  <p class="hint">Made with <svg class="heart" viewBox="0 0 7 6" width="14" height="12" role="img" aria-label="love"><path d="M1 0h2v1h1V0h2v1h1v2H6v1H5v1H4v1H3V5H2V4H1V3H0V1h1z"/></svg> by <a href="https://github.com/RchrdAriza">Richard Ariza</a> · <a href="https://github.com/RchrdAriza/samsara-exe">source</a></p>
+</div>
+  <p class="hint" id="credit">Made with <svg class="heart" viewBox="0 0 7 6" width="14" height="12" role="img" aria-label="love"><path d="M1 0h2v1h1V0h2v1h1v2H6v1H5v1H4v1H3V5H2V4H1V3H0V1h1z"/></svg> by <a href="https://github.com/RchrdAriza">Richard Ariza</a> · <a href="https://github.com/RchrdAriza/samsara-exe">source</a></p>
 </aside>
 
 <script src="src/engine.js"></script>

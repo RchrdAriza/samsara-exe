@@ -39,6 +39,30 @@ inputs:
   clock:
     description: Show the time the GIF was rendered, labeled LAST SYNC. Set to 'false' to hide it.
     default: 'true'
+  layout:
+    description: "portrait (480x720, the original) or landscape (960x540, with your name next to the circle)."
+    default: portrait
+  photo:
+    description: Show the circle with your avatar or image. Set to 'false' to hide it.
+    default: 'true'
+  queue:
+    description: Show the queue of repo windows. Set to 'false' for a static GIF without it.
+    default: 'true'
+  name:
+    description: Show your name, drawn with the same effect as the circle (landscape only). Set to 'false' to hide it.
+    default: 'true'
+  name_text:
+    description: Text to show instead of your GitHub display name (landscape only).
+    default: ''
+  name_style:
+    description: "How the name is drawn (landscape only): pixel (through the effect), block, shade or outline."
+    default: pixel
+  name_deco:
+    description: "Decoration around the name (landscape only): none, bars or columns."
+    default: none
+  tagline:
+    description: Line under the name (landscape only). Empty = your GitHub bio, 'false' hides it.
+    default: ''
   windows:
     description: Windows visible in the queue.
     default: '24'
@@ -88,6 +112,14 @@ runs:
         SAMSARA_MAX_REPOS: ${{ inputs.max_repos }}
         SAMSARA_TIMEZONE: ${{ inputs.timezone }}
         SAMSARA_CLOCK: ${{ inputs.clock }}
+        SAMSARA_LAYOUT: ${{ inputs.layout }}
+        SAMSARA_PHOTO: ${{ inputs.photo }}
+        SAMSARA_QUEUE: ${{ inputs.queue }}
+        SAMSARA_NAME: ${{ inputs.name }}
+        SAMSARA_NAME_TEXT: ${{ inputs.name_text }}
+        SAMSARA_NAME_STYLE: ${{ inputs.name_style }}
+        SAMSARA_NAME_DECO: ${{ inputs.name_deco }}
+        SAMSARA_TAGLINE: ${{ inputs.tagline }}
         SAMSARA_WINDOWS: ${{ inputs.windows }}
         SAMSARA_HOLD: ${{ inputs.hold }}
         SAMSARA_MOVE: ${{ inputs.move }}

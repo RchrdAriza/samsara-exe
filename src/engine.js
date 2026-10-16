@@ -11,7 +11,7 @@
 (() => {
 'use strict';
 
-const W = 480, H = 720;
+let W = 480, H = 720; // set by the layout
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
@@ -31,6 +31,14 @@ const DEFAULTS = {
   tz: '',            // IANA timezone for the clock ('' = local)
   bg: true,          // draw the avatar / custom image in the circle
   clock: true,       // show the "last sync" time (when the frame/GIF was rendered)
+  layout: 'portrait', // portrait (480x720) | landscape (960x540)
+  photo: true,       // draw the circle at all
+  queue: true,       // draw the repo queue
+  name: true,        // draw the user's name (landscape only)
+  nameText: '',      // custom name ('' = GitHub display name, else login)
+  nameStyle: 'pixel', // pixel | block | shade | outline
+  nameDeco: 'none',  // none | bars | columns
+  tagline: '',       // line under the name ('' = GitHub bio, false = hidden)
 };
 const cfg = { ...DEFAULTS };
 
@@ -84,6 +92,8 @@ const DEMO = [
 ].map(([name, desc, stars, forks, lang]) => ({ name, owner: 'demo', desc, stars, forks, lang, pushed: '' }));
 
 let allRepos = DEMO;
+let profileName = 'samsara.exe'; // GitHub display name (or login) of the loaded user
+let profileBio = 'endless 1-bit queue';
 let repos = DEMO;
 let image = null;
 let cv = null, ctx = null;
@@ -92,22 +102,48 @@ let cv = null, ctx = null;
 // Queue geometry: a curve (back/top -> left -> front/bottom) with gaps that
 // grow towards the front, so the back of the queue reads as stacked stripes.
 // ---------------------------------------------------------------------------
-const P0 = { x: 120, y: 30 }, P1 = { x: -80, y: 182 }, P2 = { x: 168, y: 404 };
+// Each layout has its own canvas size and scene coordinates. Portrait is the
+// original scene; landscape squeezes the curve to fit 540px and adds the name
+// on the right.
+const LAYOUTS = {
+  portrait: {
+    w: 480, h: 720,
+    P0: { x: 120, y: 30 }, P1: { x: -80, y: 182 }, P2: { x: 168, y: 404 },
+    halo: { x: 292, y: 212, r: 150 },
+    waterDx: 0, waterDy: 0,
+    clock: { x: 30, y: 590 },
+    nameBox: null,
+  },
+  landscape: {
+    w: 960, h: 540,
+    P0: { x: 120, y: 20 }, P1: { x: -80, y: 150 }, P2: { x: 168, y: 330 },
+    halo: { x: 292, y: 190, r: 150 },
+    waterDx: -50, waterDy: -132,
+    clock: { x: 500, y: 400 },
+    nameBox: { x: 465, y: 30, w: 480, h: 360 },
+  },
+};
+let LY = LAYOUTS.portrait;
+
+let P0, P1, P2, LUT, L, TAN_END, TAN_START;
 const bez = t => {
   const a = (1 - t) ** 2, b = 2 * (1 - t) * t, c = t * t;
   return { x: a * P0.x + b * P1.x + c * P2.x, y: a * P0.y + b * P1.y + c * P2.y };
 };
-const LUT = [{ t: 0, d: 0 }];
-let L = 0;
-for (let i = 1, prev = bez(0); i <= 400; i++) {
-  const p = bez(i / 400);
-  L += Math.hypot(p.x - prev.x, p.y - prev.y);
-  LUT.push({ t: i / 400, d: L });
-  prev = p;
-}
 const norm = (x, y) => { const m = Math.hypot(x, y); return { x: x / m, y: y / m }; };
-const TAN_END = norm(P2.x - P1.x, P2.y - P1.y);
-const TAN_START = norm(P0.x - P1.x, P0.y - P1.y);
+function buildCurve() {
+  ({ P0, P1, P2 } = LY);
+  LUT = [{ t: 0, d: 0 }];
+  L = 0;
+  for (let i = 1, prev = bez(0); i <= 400; i++) {
+    const p = bez(i / 400);
+    L += Math.hypot(p.x - prev.x, p.y - prev.y);
+    LUT.push({ t: i / 400, d: L });
+    prev = p;
+  }
+  TAN_END = norm(P2.x - P1.x, P2.y - P1.y);
+  TAN_START = norm(P0.x - P1.x, P0.y - P1.y);
+}
 
 function atLen(d) {
   if (d <= 0) return { x: P0.x - TAN_START.x * d, y: P0.y - TAN_START.y * d };
@@ -121,6 +157,14 @@ function atLen(d) {
 // geometric spacing: the front gap is 4x the back gap
 let R, G0, TITLED;
 function layout() {
+  const next = LAYOUTS[cfg.layout];
+  if (next !== LY || !LUT) {
+    LY = next;
+    W = LY.w; H = LY.h;
+    bits = new Uint8Array(W * H);
+    if (cv) { cv.width = W; cv.height = H; }
+    buildCurve();
+  }
   const N = cfg.windows;
   R = Math.pow(1 / 4, 1 / (N - 2));
   G0 = L * (1 - R) / (1 - Math.pow(R, N - 1));
@@ -281,7 +325,6 @@ const WATER = Array.from({ length: 46 }, () => {
   const x0 = y > 600 ? 300 : 150;
   return { x: x0 + Math.floor(rnd() * (470 - x0)), y, w: 8 + Math.floor(rnd() * 46), h: rnd() < 0.3 ? 3 : 2 };
 });
-const HALO = { x: 292, y: 212, r: 150 };
 
 // ordered dithering threshold map (Bayer 8x8), scaled to 0..255
 const BAYER = [
@@ -312,18 +355,19 @@ function haloFor(img) {
   return canvas;
 }
 
-function boxBlur(src, D, r) {
+function boxBlur(src, w, h, r) {
   if (r < 1) return src;
-  const tmp = new Float32Array(D * D), out = new Float32Array(D * D);
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
   for (let pass = 0; pass < 2; pass++) {
     const a = pass ? tmp : src, b = pass ? out : tmp;
-    for (let j = 0; j < D; j++) {
+    const lines = pass ? w : h, len = pass ? h : w;
+    for (let j = 0; j < lines; j++) {
       let acc = 0, n = 0;
-      const at = i => (pass ? i * D + j : j * D + i);
-      for (let i = 0; i <= r && i < D; i++) { acc += a[at(i)]; n++; }
-      for (let i = 0; i < D; i++) {
+      const at = i => (pass ? i * w + j : j * w + i);
+      for (let i = 0; i <= r && i < len; i++) { acc += a[at(i)]; n++; }
+      for (let i = 0; i < len; i++) {
         b[at(i)] = acc / n;
-        if (i + r + 1 < D) { acc += a[at(i + r + 1)]; n++; }
+        if (i + r + 1 < len) { acc += a[at(i + r + 1)]; n++; }
         if (i - r >= 0) { acc -= a[at(i - r)]; n--; }
       }
     }
@@ -332,7 +376,7 @@ function boxBlur(src, D, r) {
 }
 
 function buildHalo(img) {
-  const D = HALO.r * 2, size = cfg.dot;
+  const D = LY.halo.r * 2;
   const src = document.createElement('canvas');
   src.width = src.height = D;
   const s = src.getContext('2d', { willReadFrequently: true });
@@ -340,7 +384,7 @@ function buildHalo(img) {
     const k = Math.max(D / img.width, D / img.height);
     s.drawImage(img, (D - img.width * k) / 2, (D - img.height * k) / 2, img.width * k, img.height * k);
   } else {
-    const g = s.createRadialGradient(D / 2, D / 2, 10, D / 2, D / 2, HALO.r);
+    const g = s.createRadialGradient(D / 2, D / 2, 10, D / 2, D / 2, LY.halo.r);
     g.addColorStop(0, '#fff');
     g.addColorStop(1, '#bbb');
     s.fillStyle = g;
@@ -359,26 +403,32 @@ function buildHalo(img) {
   const lo = pct(0.02), hi = Math.max(lo + 1, pct(0.98));
   const T = new Float32Array(D * D);
   for (let p = 0; p < D * D; p++) T[p] = 1 - Math.pow(1 - clamp((raw[p] - lo) / (hi - lo), 0, 1), 1.4) * 0.92;
+  return applyEffect(T, D, D, false);
+}
 
+// Turns a tone map (0 = black .. 1 = white) into a 1-bit canvas with the
+// selected effect. With `clear`, paper pixels are transparent.
+function applyEffect(T, w, h, clear) {
+  const size = cfg.dot, N = w * h;
   const out = document.createElement('canvas');
-  out.width = out.height = D;
+  out.width = w; out.height = h;
   const o = out.getContext('2d', { willReadFrequently: true });
   o.fillStyle = '#fff';
-  o.fillRect(0, 0, D, D);
+  o.fillRect(0, 0, w, h);
   o.fillStyle = '#000';
-  const ink = new Uint8Array(D * D); // 1 = black
+  const ink = new Uint8Array(N); // 1 = black
   const fx = cfg.fx;
 
   if (fx === 'halftone' || fx === 'ascii') {
     // "vector" effects: drawn first, then snapped to 1-bit
-    const B = boxBlur(T, D, Math.floor(size / 2));
-    const tone = (x, y) => B[clamp(Math.round(y), 0, D - 1) * D + clamp(Math.round(x), 0, D - 1)];
+    const B = boxBlur(T, w, h, Math.floor(size / 2));
+    const tone = (x, y) => B[clamp(Math.round(y), 0, h - 1) * w + clamp(Math.round(x), 0, w - 1)];
     if (fx === 'halftone') {
-      const c = Math.SQRT1_2, ext = D * 0.75;
+      const c = Math.SQRT1_2, ext = Math.max(w, h) * 0.75;
       for (let v = -ext; v <= ext; v += size) {
         for (let u = -ext; u <= ext; u += size) {
-          const cx = D / 2 + (u - v) * c, cy = D / 2 + (u + v) * c;
-          if (cx < -size || cy < -size || cx > D + size || cy > D + size) continue;
+          const cx = w / 2 + (u - v) * c, cy = h / 2 + (u + v) * c;
+          if (cx < -size || cy < -size || cx > w + size || cy > h + size) continue;
           const r = size * 0.5 * Math.SQRT2 * Math.sqrt(1 - tone(cx, cy)); // dots touch at full black
           if (r < 0.7) continue;
           o.beginPath();
@@ -390,21 +440,21 @@ function buildHalo(img) {
       const RAMP = ' .:-=+*#%@';
       const cw = Math.max(6, size + 1);
       o.font = `${cw}px "Press Start 2P"`;
-      for (let y = 0; y < D; y += cw) {
-        for (let x = 0; x < D; x += cw) {
+      for (let y = 0; y < h; y += cw) {
+        for (let x = 0; x < w; x += cw) {
           const dk = Math.min(1, (1 - tone(x + cw / 2, y + cw / 2)) * 1.35);
           const ci = Math.min(RAMP.length - 1, Math.floor(dk * RAMP.length));
           if (ci > 0) o.fillText(RAMP[ci], x, y + cw);
         }
       }
     }
-    const d = o.getImageData(0, 0, D, D).data;
-    for (let p = 0; p < D * D; p++) ink[p] = d[p << 2] < 128 ? 1 : 0;
+    const d = o.getImageData(0, 0, w, h).data;
+    for (let p = 0; p < N; p++) ink[p] = d[p << 2] < 128 ? 1 : 0;
   } else if (fx === 'lines' || fx === 'cross') {
-    const B = boxBlur(T, D, Math.floor(size / 2));
+    const B = boxBlur(T, w, h, Math.floor(size / 2));
     const m = a => ((a % size) + size) % size;
-    for (let y = 0, p = 0; y < D; y++) {
-      for (let x = 0; x < D; x++, p++) {
+    for (let y = 0, p = 0; y < h; y++) {
+      for (let x = 0; x < w; x++, p++) {
         const dk = 1 - B[p];
         if (fx === 'lines') {
           // wavy lines whose thickness follows darkness (engraving style)
@@ -418,67 +468,339 @@ function buildHalo(img) {
     }
   } else {
     // per-pixel effects on a reduced grid: bigger size = chunkier pixels
-    const b = Math.max(1, Math.round(size / 4)), gw = Math.ceil(D / b);
-    const G = new Float32Array(gw * gw);
-    for (let gy = 0; gy < gw; gy++) {
+    const b = Math.max(1, Math.round(size / 4)), gw = Math.ceil(w / b), gh = Math.ceil(h / b);
+    const G = new Float32Array(gw * gh);
+    for (let gy = 0; gy < gh; gy++) {
       for (let gx = 0; gx < gw; gx++) {
         let sum = 0, n = 0;
-        for (let y = gy * b; y < Math.min(D, gy * b + b); y++)
-          for (let x = gx * b; x < Math.min(D, gx * b + b); x++) { sum += T[y * D + x]; n++; }
+        for (let y = gy * b; y < Math.min(h, gy * b + b); y++)
+          for (let x = gx * b; x < Math.min(w, gx * b + b); x++) { sum += T[y * w + x]; n++; }
         G[gy * gw + gx] = sum / n;
       }
     }
     const diffuse = fx === 'floyd'
       ? [[1, 0, 7 / 16], [-1, 1, 3 / 16], [0, 1, 5 / 16], [1, 1, 1 / 16]]
       : [[1, 0, 1 / 8], [2, 0, 1 / 8], [-1, 1, 1 / 8], [0, 1, 1 / 8], [1, 1, 1 / 8], [0, 2, 1 / 8]];
-    const Gi = new Uint8Array(gw * gw);
-    for (let gy = 0; gy < gw; gy++) {
+    const Gi = new Uint8Array(gw * gh);
+    for (let gy = 0; gy < gh; gy++) {
       for (let gx = 0; gx < gw; gx++) {
         const i = gy * gw + gx, v = G[i];
         const on = fx === 'bayer' ? v * 255 <= BAYER[((gy & 7) << 3) | (gx & 7)] : v < 0.5;
         Gi[i] = on ? 1 : 0;
         if (fx === 'floyd' || fx === 'atkinson') {
           const err = v - (on ? 0 : 1);
-          for (const [dx, dy, w] of diffuse) {
+          for (const [dx, dy, wt] of diffuse) {
             const nx = gx + dx, ny = gy + dy;
-            if (nx >= 0 && nx < gw && ny < gw) G[ny * gw + nx] += err * w;
+            if (nx >= 0 && nx < gw && ny < gh) G[ny * gw + nx] += err * wt;
           }
         }
       }
     }
-    for (let y = 0, p = 0; y < D; y++)
-      for (let x = 0; x < D; x++, p++) ink[p] = Gi[((y / b) | 0) * gw + ((x / b) | 0)];
+    for (let y = 0, p = 0; y < h; y++)
+      for (let x = 0; x < w; x++, p++) ink[p] = Gi[((y / b) | 0) * gw + ((x / b) | 0)];
   }
 
-  const id = o.createImageData(D, D), d = id.data;
-  for (let p = 0; p < D * D; p++) {
+  const id = o.createImageData(w, h), d = id.data;
+  for (let p = 0; p < N; p++) {
     const v = ink[p] ? 0 : 255, i = p << 2;
     d[i] = d[i + 1] = d[i + 2] = v;
-    d[i + 3] = 255;
+    d[i + 3] = clear && !ink[p] ? 0 : 255;
   }
   o.putImageData(id, 0, 0);
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// The name (landscape only): drawn in one of NAME_STYLES, with an optional
+// decoration and a tagline (the GitHub bio by default), stacked and centered
+// in LY.nameBox. Everything ends up as black ink on a transparent canvas.
+// ---------------------------------------------------------------------------
+const NAME_STYLES = { pixel: 'Pixel (uses the effect)', block: 'Block', shade: 'Shade', outline: 'Outline' };
+const NAME_DECOS = { none: 'None', bars: 'Bars', columns: 'Columns' };
+const nameCache = new Map();
+
+// greedy word wrap; words only break when `breakWords` (else null if one doesn't fit)
+function wrapWith(text, fits, breakWords) {
+  const lines = [];
+  let cur = '';
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const test = cur ? cur + ' ' + word : word;
+    if (fits(test)) { cur = test; continue; }
+    if (cur) lines.push(cur);
+    cur = '';
+    if (!breakWords && !fits(word)) return null;
+    for (const ch of word) {
+      if (fits(cur + ch)) cur += ch;
+      else { if (cur) lines.push(cur); cur = ch; }
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+// first (largest) size, from `sizes`, whose wrap into at most 3 lines fits
+function fitLines(text, sizes, widthOk, heightOk) {
+  for (const breakWords of [false, true]) {
+    for (const size of sizes) {
+      const lines = wrapWith(text, t => widthOk(t, size), breakWords);
+      if (lines && lines.length <= 3 && heightOk(lines.length, size)) return { lines, size };
+    }
+  }
+  const size = sizes[sizes.length - 1];
+  return { lines: wrapWith(text, t => widthOk(t, size), true).slice(0, 3), size };
+}
+
+// a canvas whose ink pixels are set with rect(); toCanvas() makes it black on transparent
+function inkCanvas(w, h) {
+  const ink = new Uint8Array(w * h);
+  return {
+    w, h, ink,
+    rect(x, y, rw, rh, level = 1) {
+      for (let j = Math.max(0, y); j < Math.min(h, y + rh); j++)
+        for (let i = Math.max(0, x); i < Math.min(w, x + rw); i++)
+          if (level >= 1 || BAYER[((j & 7) << 3) | (i & 7)] < level * 256) ink[j * w + i] = 1;
+    },
+    toCanvas() {
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const g = c.getContext('2d');
+      const id = g.createImageData(w, h);
+      for (let p = 0; p < w * h; p++) if (ink[p]) id.data[(p << 2) + 3] = 255;
+      g.putImageData(id, 0, 0);
+      return c;
+    },
+  };
+}
+
+// Pixel style: the name in Press Start 2P, through the active effect.
+function pixelName(text, maxW, maxH) {
+  const c = document.createElement('canvas');
+  const m = c.getContext('2d', { willReadFrequently: true });
+  const LH = 1.35, font = size => `${size}px "Press Start 2P"`;
+  const sizes = [];
+  for (let sz = 96; sz >= 24; sz -= 4) sizes.push(sz);
+  const pick = fitLines(text, sizes,
+    (t, sz) => { m.font = font(sz); return m.measureText(t).width <= maxW; },
+    (n, sz) => n * sz * LH <= maxH);
+  const w = maxW, h = Math.ceil(pick.lines.length * pick.size * LH);
+  c.width = w; c.height = h;
+  m.fillStyle = '#fff';
+  m.fillRect(0, 0, w, h);
+  m.fillStyle = '#000';
+  m.font = font(pick.size);
+  pick.lines.forEach((l, i) => {
+    const x = Math.round((w - m.measureText(l).width) / 2);
+    m.fillText(l, x, Math.round(i * pick.size * LH + pick.size * 1.1));
+  });
+  const px = m.getImageData(0, 0, w, h).data, N = w * h;
+  const T = new Float32Array(N);
+  for (let p = 0; p < N; p++) {
+    const i = p << 2;
+    T[p] = ((px[i] * 77 + px[i + 1] * 150 + px[i + 2] * 29) >> 8) / 255;
+  }
+  return applyEffect(T, w, h, true);
+}
+
+// 1-bit rows of a line of text, sampled from Press Start 2P (an 8x8 pixel font)
+// at 2x so every glyph pixel lands on a whole cell.
+let glyphRows = null; // [top, bottom) rows that any glyph uses, incl. accents and descenders
+function glyphBits(text) {
+  const c = document.createElement('canvas');
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const FONT = '16px "Press Start 2P"';
+  g.font = FONT;
+  const w = Math.max(1, Math.ceil(g.measureText(text).width / 2));
+  c.width = w * 2; c.height = 40;
+  g.font = FONT;
+  g.fillText(text, 0, 24);
+  const d = g.getImageData(0, 0, c.width, c.height).data;
+  const on = new Uint8Array(w * 20);
+  for (let y = 0; y < 20; y++)
+    for (let x = 0; x < w; x++) on[y * w + x] = d[((y * 2 + 1) * c.width + x * 2 + 1) * 4 + 3] >= 128 ? 1 : 0;
+  return { w, on };
+}
+function rowRange() {
+  if (!glyphRows) {
+    const { w, on } = glyphBits('ÁÉÑgjpqy|');
+    let top = 20, bottom = 0;
+    for (let y = 0; y < 20; y++) for (let x = 0; x < w; x++) if (on[y * w + x]) { top = Math.min(top, y); bottom = y + 1; }
+    glyphRows = [top, Math.max(top + 1, bottom)];
+  }
+  return glyphRows;
+}
+
+// Block styles: every glyph pixel becomes a k×k cell. `block` and `shade` add a
+// drop shadow drawn as a double line (like ANSI Shadow's ═║╗╚), `outline` keeps
+// only the double-line contour.
+function blockName(text, maxW, maxH, style) {
+  const [top, bottom] = rowRange(), gh = bottom - top;
+  const cellsW = t => glyphBits(t).w + 1, cellsH = n => n * gh + (n - 1) * 2 + 1;
+  const sizes = [];
+  for (let k = 12; k >= 2; k--) sizes.push(k);
+  const { lines, size: k } = fitLines(text, sizes, (t, k) => cellsW(t) * k <= maxW, (n, k) => cellsH(n) * k <= maxH);
+
+  // mask of the whole name, lines centered
+  const bits = lines.map(glyphBits);
+  const mw = Math.max(...bits.map(b => b.w)) + 1, mh = cellsH(lines.length);
+  const M = new Uint8Array(mw * mh);
+  bits.forEach((b, li) => {
+    const ox = Math.floor((mw - 1 - b.w) / 2), oy = li * (gh + 2);
+    for (let y = 0; y < gh; y++) for (let x = 0; x < b.w; x++) if (b.on[(y + top) * b.w + x]) M[(oy + y) * mw + ox + x] = 1;
+  });
+  const inM = (x, y) => x >= 0 && y >= 0 && x < mw && y < mh && M[y * mw + x] === 1;
+  const inS = (x, y) => inM(x - 1, y - 1);
+
+  const out = inkCanvas(mw * k, mh * k), t = Math.max(1, Math.round(k / 6));
+  // double line along the edges of `cell` that border cells outside `inside`
+  const contour = (x, y, inside) => {
+    const X = x * k, Y = y * k;
+    if (!inside(x, y - 1)) { out.rect(X, Y, k, t); out.rect(X, Y + 2 * t, k, t); }
+    if (!inside(x, y + 1)) { out.rect(X, Y + k - t, k, t); out.rect(X, Y + k - 3 * t, k, t); }
+    if (!inside(x - 1, y)) { out.rect(X, Y, t, k); out.rect(X + 2 * t, Y, t, k); }
+    if (!inside(x + 1, y)) { out.rect(X + k - t, Y, t, k); out.rect(X + k - 3 * t, Y, t, k); }
+  };
+  for (let y = 0; y < mh; y++) {
+    for (let x = 0; x < mw; x++) {
+      if (style === 'outline') {
+        if (inM(x, y)) contour(x, y, inM);
+        continue;
+      }
+      if (inM(x, y)) {
+        // shade: light at the top of each glyph row, solid at the bottom
+        const row = y % (gh + 2);
+        const level = style === 'shade' ? 0.3 + 0.75 * (row / Math.max(1, gh - 1)) : 1;
+        out.rect(x * k, y * k, k, k, level);
+      } else if (inS(x, y)) {
+        contour(x, y, (cx, cy) => inS(cx, cy) || inM(cx, cy));
+      }
+    }
+  }
+  return out.toCanvas();
+}
+
+// Tagline in VT323, thresholded so it stays crisp. Up to 2 lines.
+function taglineCanvas(text, maxW, spaced) {
+  const c = document.createElement('canvas');
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const FONT = '24px VT323', LH = 24;
+  g.font = FONT;
+  const fits = s => g.measureText(s).width <= maxW;
+  const wide = text.split('').join(' ');
+  let lines;
+  if (spaced && fits(wide)) lines = [wide];
+  else if (!spaced && fits(`── ${text} ──`)) lines = [`── ${text} ──`];
+  else {
+    lines = wrapWith(text, fits, true);
+    if (lines.length > 2) {
+      lines = lines.slice(0, 2);
+      let last = lines[1];
+      while (last.length > 1 && !fits(last + '…')) last = last.slice(0, -1);
+      lines[1] = last + '…';
+    }
+  }
+  c.width = maxW; c.height = lines.length * LH + 6;
+  g.font = FONT;
+  lines.forEach((l, i) => g.fillText(l, Math.round((maxW - g.measureText(l).width) / 2), (i + 1) * LH - 4));
+  const id = g.getImageData(0, 0, c.width, c.height), d = id.data;
+  for (let i = 3; i < d.length; i += 4) { d[i] = d[i] >= 110 ? 255 : 0; d[i - 3] = d[i - 2] = d[i - 1] = 0; }
+  g.putImageData(id, 0, 0);
+  return c;
+}
+
+// ░▒▓████▓▒░ across the box
+function barCanvas(w) {
+  const h = 8, out = inkCanvas(w, h), seg = 12;
+  [0.25, 0.5, 0.75].forEach((lv, i) => {
+    out.rect(i * seg, 0, seg, h, lv);
+    out.rect(w - (i + 1) * seg, 0, seg, h, lv);
+  });
+  out.rect(3 * seg, 0, w - 6 * seg, h);
+  return out.toCanvas();
+}
+
+// a "( )" of shaded cells on each side, as tall as the name
+function columnsCanvas(w, h) {
+  const out = inkCanvas(w, h), ck = 8, n = Math.max(3, Math.floor(h / ck));
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n, bulge = Math.sin(Math.PI * t);
+    const dx = Math.round(bulge * 2) * ck, lv = 0.3 + 0.7 * bulge;
+    const y = Math.round(i * h / n);
+    out.rect(2 * ck - dx + ck, y, 2 * ck, ck - 1, lv);              // left
+    out.rect(w - 4 * ck + dx - ck, y, 2 * ck, ck - 1, lv);          // right
+  }
+  return out.toCanvas();
+}
+
+function buildName(text, tagline, box) {
+  const style = cfg.nameStyle, deco = cfg.nameDeco;
+  const GAP = 18, SIDE = deco === 'columns' ? 64 : 0;
+  const tag = tagline ? taglineCanvas(tagline, box.w, style === 'shade') : null;
+  const bar = deco === 'bars' ? barCanvas(box.w) : null;
+  const reserved = (tag ? tag.height + GAP : 0) + (bar ? 2 * (bar.height + GAP) : 0);
+  const maxW = box.w - 2 * SIDE, maxH = Math.max(40, box.h - reserved);
+  const name = style === 'pixel' ? pixelName(text, maxW, maxH) : blockName(text, maxW, maxH, style);
+
+  const parts = [bar, name, tag, bar].filter(Boolean);
+  const total = parts.reduce((a, c) => a + c.height, 0) + GAP * (parts.length - 1);
+  const c = document.createElement('canvas');
+  c.width = box.w; c.height = box.h;
+  const g = c.getContext('2d');
+  let y = Math.max(0, Math.round((box.h - total) / 2));
+  for (const part of parts) {
+    g.drawImage(part, Math.round((box.w - part.width) / 2), y);
+    if (part === name && deco === 'columns') {
+      const cols = columnsCanvas(name.width + 2 * SIDE, name.height);
+      g.drawImage(cols, Math.round((box.w - cols.width) / 2), y);
+    }
+    y += part.height + GAP;
+  }
+  return c;
+}
+
+function nameFor(text, tagline, box) {
+  const key = [text, tagline, cfg.nameStyle, cfg.nameDeco, cfg.fx, cfg.dot, box.w, box.h].join('|');
+  let canvas = nameCache.get(key);
+  if (!canvas) {
+    canvas = buildName(text, tagline, box);
+    nameCache.set(key, canvas);
+    if (nameCache.size > 32) nameCache.delete(nameCache.keys().next().value);
+  }
+  return canvas;
+}
+
+const displayName = () => (cfg.nameText || profileName).trim();
+const displayTagline = () => (cfg.tagline === false ? '' : (cfg.tagline || profileBio).replace(/\s+/g, ' ').trim());
+
+function drawName() {
+  const box = LY.nameBox, text = displayName();
+  if (!box || !cfg.name || !text) return;
+  ctx.drawImage(nameFor(text, displayTagline(), box), box.x, box.y);
 }
 
 function drawBackground() {
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, W, H);
 
-  const img = image && cfg.bg ? image : null;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(HALO.x, HALO.y, HALO.r, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.drawImage(haloFor(img), HALO.x - HALO.r, HALO.y - HALO.r);
-  ctx.restore();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#000';
-  ctx.beginPath();
-  ctx.arc(HALO.x, HALO.y, HALO.r, 0, Math.PI * 2);
-  ctx.stroke();
+  if (cfg.photo) {
+    const img = image && cfg.bg ? image : null, HALO = LY.halo;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(HALO.x, HALO.y, HALO.r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(haloFor(img), HALO.x - HALO.r, HALO.y - HALO.r);
+    ctx.restore();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(HALO.x, HALO.y, HALO.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
-  ctx.fillStyle = '#000';
-  for (const s of WATER) ctx.fillRect(s.x, s.y, s.w, s.h);
+  // the "water" is where the queue lands; without the queue it floats
+  if (cfg.queue) {
+    ctx.fillStyle = '#000';
+    for (const s of WATER) ctx.fillRect(s.x + LY.waterDx, s.y + LY.waterDy, s.w, s.h);
+  }
 }
 
 function drawWindow(repo, s, alpha, ph) {
@@ -552,22 +874,23 @@ function drawClock(now) {
   if (!cfg.clock) return;
   // A GIF freezes the time it was rendered, so label it as such
   ctx.font = FONT_BODY;
+  const { x, y } = LY.clock;
   const lw = Math.ceil(ctx.measureText('LAST SYNC').width);
   ctx.fillStyle = '#000';
-  ctx.fillRect(30, 590, lw + 10, 18);
+  ctx.fillRect(x, y, lw + 10, 18);
   ctx.fillStyle = '#fff';
-  crispText('LAST SYNC', 35, 604);
+  crispText('LAST SYNC', x + 5, y + 14);
   const p = Object.fromEntries(clockFmt.formatToParts(now).map(x => [x.type, x.value]));
   const h24 = +p.hour % 24;
   ctx.fillStyle = '#000';
   ctx.font = FONT_CLOCK;
-  crispText(`${h24 < 12 ? 'AM' : 'PM'} ${h24 % 12 || 12}:${p.minute}`, 30, 648);
-  crispText(`${MONTHS[+p.month - 1]}.${p.day} ${p.year}`, 30, 698);
+  crispText(`${h24 < 12 ? 'AM' : 'PM'} ${h24 % 12 || 12}:${p.minute}`, x, y + 58);
+  crispText(`${MONTHS[+p.month - 1]}.${p.day} ${p.year}`, x, y + 108);
 }
 
 // Everything gray (window fades, gradients) becomes a 1-bit Bayer pattern,
 // which is what makes the fade read as a "dissolve".
-const bits = new Uint8Array(W * H); // 1 = ink
+let bits = new Uint8Array(W * H); // 1 = ink
 function dither() {
   const img = ctx.getImageData(0, 0, W, H), d = img.data;
   const { ink, paper } = colors();
@@ -594,7 +917,8 @@ function render(t, now = new Date()) {
   const e = ph < cfg.hold ? 0 : ease((ph - cfg.hold) / cfg.move);
   const n = repos.length, N = cfg.windows;
   drawBackground();
-  for (let k = N; k >= 0; k--) {
+  drawName();
+  for (let k = cfg.queue ? N : -1; k >= 0; k--) {
     const s = k - e;
     let a = 1;
     if (s > N - 1) a = N - s;                  // enters at the back of the queue
@@ -631,7 +955,13 @@ function set(patch) {
       case 'scale': cfg.scale = num(v, 1, 4, DEFAULTS.scale); break;
       case 'max': cfg.max = num(v, 0, 500, DEFAULTS.max); break;
       case 'dot': cfg.dot = num(v, 3, 16, DEFAULTS.dot); break;
-      case 'invert': case 'forks': case 'bg': case 'clock': cfg[k] = bool(v); break;
+      case 'invert': case 'forks': case 'bg': case 'clock':
+      case 'photo': case 'queue': case 'name': cfg[k] = bool(v); break;
+      case 'layout': cfg.layout = LAYOUTS[v] ? v : DEFAULTS.layout; break;
+      case 'nameText': cfg.nameText = String(v).trim().slice(0, 60); break;
+      case 'nameStyle': cfg.nameStyle = NAME_STYLES[v] ? v : DEFAULTS.nameStyle; break;
+      case 'nameDeco': cfg.nameDeco = NAME_DECOS[v] ? v : DEFAULTS.nameDeco; break;
+      case 'tagline': cfg.tagline = v === false || v === 'false' ? false : String(v).trim().slice(0, 120); break;
       case 'sort': cfg.sort = ['pushed', 'stars', 'name'].includes(v) ? v : DEFAULTS.sort; break;
       case 'fx': cfg.fx = EFFECTS[v] ? v : DEFAULTS.fx; break;
       case 'palette': cfg.palette = PALETTES[v] ? v : DEFAULTS.palette; break;
@@ -686,13 +1016,19 @@ async function load(query, { token = '', image: customImage = '' } = {}) {
   let list, avatar = '';
   if (!query) {
     list = DEMO;
+    profileName = 'samsara.exe';
+    profileBio = 'endless 1-bit queue';
   } else if (query.includes('/')) {
     const names = query.split(/[\s,]+/).filter(Boolean)
       .map(s => s.replace(/^https?:\/\/github\.com\//, '').replace(/(\.git)?\/?$/, ''));
     const res = await Promise.all(names.map(n => gh('/repos/' + n, token)));
     list = res.map(toRepo);
     avatar = res[0].owner.avatar_url;
+    profileName = res[0].owner.login;
+    profileBio = '';
   } else {
+    // the display name is only decoration: if it fails, fall back to the login
+    const profile = gh(`/users/${encodeURIComponent(query)}`, token).catch(() => null);
     let all = [];
     for (let page = 1; page <= 5; page++) {
       const r = await gh(`/users/${encodeURIComponent(query)}/repos?per_page=100&page=${page}&sort=pushed&type=owner`, token);
@@ -702,6 +1038,9 @@ async function load(query, { token = '', image: customImage = '' } = {}) {
     if (!all.length) throw new Error(`${query} has no public repos.`);
     list = all.map(toRepo);
     avatar = all[0].owner.avatar_url;
+    const prof = await profile;
+    profileName = prof?.name || all[0].owner.login;
+    profileBio = prof?.bio || '';
   }
   allRepos = list;
   applyRepoFilters();
@@ -844,7 +1183,8 @@ async function encodeGif({ onProgress, now = new Date() } = {}) {
   try {
     const sc = cfg.scale, gw = W * sc, gh_ = H * sc;
     const gif = new Gif1Bit(gw, gh_);
-    const total = repos.length * cycleMs(), dt = 1000 / cfg.fps;
+    // without the queue nothing moves, so a single frame is the whole loop
+    const dt = 1000 / cfg.fps, total = cfg.queue ? repos.length * cycleMs() : dt;
     const scaled = sc === 1 ? null : new Uint8Array(gw * gh_);
     let f = 0;
     for (let t = 0; t < total - 0.001; t += dt, f++) {
@@ -908,7 +1248,7 @@ const fontsReady = () => Promise.all([FONT_TITLE, FONT_BODY, FONT_CLOCK].map(f =
 set({});
 
 window.Samsara = {
-  W, H, DEFAULTS, EFFECTS, PALETTES, TITLE_GLYPHS, cfg, state, colors,
+  get W() { return W; }, get H() { return H; }, DEFAULTS, EFFECTS, NAME_STYLES, NAME_DECOS, PALETTES, TITLE_GLYPHS, cfg, state, colors,
   mount, set, load, setImage, loadImage, render, encodeGif, exportForAction, fontsReady,
   cycleMs, repoCount: () => repos.length,
 };

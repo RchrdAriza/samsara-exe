@@ -17,7 +17,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const KEYS = ['user', 'repos', 'fx', 'palette', 'dot', 'image', 'sort', 'forks', 'max_repos', 'timezone',
-  'windows', 'hold', 'move', 'fps', 'scale', 'clock', 'output', 'dark_output', 'token'];
+  'windows', 'hold', 'move', 'fps', 'scale', 'clock', 'layout', 'photo', 'queue', 'name', 'name_text', 'name_style', 'name_deco', 'tagline',
+  'output', 'dark_output', 'token'];
 
 function readOptions() {
   const o = {};
@@ -165,6 +166,8 @@ try {
     user: opts.user, repos: opts.repos, token: opts.token,
     fx: opts.fx, palette: opts.palette, dot: opts.dot, sort: opts.sort, forks: opts.forks, max: opts.max_repos,
     tz: opts.timezone, windows: opts.windows, hold: opts.hold, move: opts.move, fps: opts.fps, scale: opts.scale, clock: opts.clock,
+    layout: opts.layout, photo: opts.photo, queue: opts.queue, name: opts.name, nameText: opts.name_text,
+    nameStyle: opts.name_style, nameDeco: opts.name_deco, tagline: opts.tagline,
     image: await resolveImage(opts.image),
   };
   log(`rendering ${params.repos || params.user} · ${params.fx || 'halftone'}`);
