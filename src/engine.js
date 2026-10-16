@@ -604,8 +604,11 @@ function drawBackground() {
     ctx.stroke();
   }
 
-  ctx.fillStyle = '#000';
-  for (const s of WATER) ctx.fillRect(s.x + LY.waterDx, s.y + LY.waterDy, s.w, s.h);
+  // the "water" is where the queue lands; without the queue it floats
+  if (cfg.queue) {
+    ctx.fillStyle = '#000';
+    for (const s of WATER) ctx.fillRect(s.x + LY.waterDx, s.y + LY.waterDy, s.w, s.h);
+  }
 }
 
 function drawWindow(repo, s, alpha, ph) {

@@ -16,7 +16,7 @@ No build step, no package.json, no npm dependencies, no test suite or linter. Pl
   node action/render.mjs --user octocat --fx atkinson --timezone Europe/Madrid
   ```
   Flags mirror the action inputs (`--max-repos`, `--dark-output`, ...); `SAMSARA_*` env vars work too. `GITHUB_TOKEN` is picked up if set (avoids the 60 req/hour unauthenticated limit). Output goes to `samsara.gif` / `samsara-dark.gif` in cwd.
-- Portrait regression check: the engine is deterministic, so with `--clock false` the same user and options give byte-identical GIFs. Render before and after a change and compare `sha256sum` (run both close together, the user's repos can change).
+- Portrait regression check: the engine is deterministic, so with `--clock false` the same user and options give byte-identical GIFs. Render the old code (e.g. a `git worktree` of `main`) and the new code back to back per effect and `cmp` them. Use a user whose repos rarely change: octocat's star/fork counts change within minutes and show up as a few differing pixels. Unauthenticated runs share 60 API calls/hour (2 per render).
 - CI: `.github/workflows/demo.yml` runs the action from this checkout (`uses: ./`) on every push to `main` and daily, regenerating the README demo GIF on the `samsara` branch. A push to `main` is effectively the integration test.
 
 ## Architecture
