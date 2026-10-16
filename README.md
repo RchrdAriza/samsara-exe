@@ -78,6 +78,18 @@ The circle shows your avatar (or any image you choose) through one of eight 1-bi
 
 `dot` (3–16) sets the size of the dots, lines, characters or pixels.
 
+## Layouts
+
+| `layout` | Size | Scene |
+|---|---|---|
+| `portrait` | 480×720 | The original: the circle with the queue passing over it, and the clock below |
+| `landscape` | 960×540 | The same circle and queue on the left, your name on the right drawn with the same effect, and the clock below it |
+
+Each part can be turned off: `photo: false` hides the circle, `queue: false` hides the
+repo windows (the GIF becomes a single static frame) and, in landscape, `name: false`
+hides the name. The name is your GitHub display name, or your login if you don't have
+one; `name_text` replaces it with any text.
+
 ## Palettes
 
 Everything is two colors, ink and paper. Pick a pair with `palette`:
@@ -110,6 +122,11 @@ background. Palettes that already have a dark background look the same in both t
 | `sort` | `pushed` | `pushed`, `stars` or `name` |
 | `forks` | `false` | Include forked repos |
 | `max_repos` | `10` | Repos in the loop, `0` = all. Each one adds about 3 s and 130 KB |
+| `layout` | `portrait` | `portrait` or `landscape` (see above) |
+| `photo` | `true` | Show the circle. `false` hides it |
+| `queue` | `true` | Show the repo windows. `false` makes a static GIF without them |
+| `name` | `true` | Show your name (landscape only). `false` hides it |
+| `name_text` | your GitHub name | Text to show instead of your name (landscape only) |
 | `clock` | `true` | Show the time the GIF was rendered, labeled LAST SYNC. `false` hides it |
 | `timezone` | `UTC` | IANA timezone for the clock |
 | `windows` | `24` | Windows visible in the queue |

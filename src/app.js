@@ -7,7 +7,7 @@
 'use strict';
 
 const S = window.Samsara;
-const ACTION = 'RchrdAriza/samsara-exe@v1';
+const ACTION = 'AdolfLecompte/samsara-exe@v1';
 const OUTPUT_BRANCH = 'samsara';
 const P = new URLSearchParams(location.search);
 const $ = id => document.getElementById(id);
@@ -35,6 +35,11 @@ S.set({
   scale: P.get('scale') ?? undefined,
   bg: P.get('bg') === 'none' ? false : undefined,
   clock: P.get('clock') ?? undefined,
+  layout: P.get('layout') ?? undefined,
+  photo: P.get('photo') ?? undefined,
+  queue: P.get('queue') ?? undefined,
+  name: P.get('name') ?? undefined,
+  nameText: P.get('name_text') ?? undefined,
   tz: P.get('tz') || localTz,
   invert: P.has('invert') ? P.get('invert') : matchMedia('(prefers-color-scheme: dark)').matches,
 });
@@ -77,6 +82,17 @@ function syncControls() {
   $('forks').checked = cfg.forks;
   $('clock').checked = cfg.clock;
   $('invert').checked = cfg.invert;
+  $('layout').value = cfg.layout;
+  $('photo').checked = cfg.photo;
+  $('queue').checked = cfg.queue;
+  $('name').checked = cfg.name;
+  $('nameText').value = cfg.nameText;
+  // the name only exists in landscape; the repo options only matter with the queue
+  const land = cfg.layout === 'landscape';
+  $('nameRow').classList.toggle('hidden', !land);
+  $('nameToggle').classList.toggle('hidden', !land);
+  $('nameText').disabled = !cfg.name;
+  for (const id of ['sort', 'max', 'forks']) $(id).disabled = !cfg.queue;
   palEl.value = cfg.palette;
   // the page wears the same two colors as the animation
   const { ink, paper } = S.colors();
@@ -100,6 +116,11 @@ function syncURL() {
   put('max', String(cfg.max), String(S.DEFAULTS.max));
   put('forks', cfg.forks ? '1' : '', '');
   put('clock', cfg.clock ? '' : '0', '');
+  put('layout', cfg.layout, S.DEFAULTS.layout);
+  put('photo', cfg.photo ? '' : '0', '');
+  put('queue', cfg.queue ? '' : '0', '');
+  put('name', cfg.name ? '' : '0', '');
+  put('name_text', cfg.nameText, '');
   put('tz', cfg.tz, localTz);
   history.replaceState(null, '', url);
 }
@@ -119,6 +140,11 @@ $('max').addEventListener('change', e => { update({ max: e.target.value }); rest
 $('forks').addEventListener('change', e => { update({ forks: e.target.checked }); restart(); });
 $('invert').addEventListener('change', e => update({ invert: e.target.checked }));
 $('clock').addEventListener('change', e => update({ clock: e.target.checked }));
+$('layout').addEventListener('change', e => { update({ layout: e.target.value }); fitCanvas(); });
+$('photo').addEventListener('change', e => update({ photo: e.target.checked }));
+$('queue').addEventListener('change', e => { update({ queue: e.target.checked }); restart(); });
+$('name').addEventListener('change', e => update({ name: e.target.checked }));
+$('nameText').addEventListener('change', e => update({ nameText: e.target.value }));
 $('tz').addEventListener('change', e => {
   const v = e.target.value.trim();
   try { new Intl.DateTimeFormat('en', { timeZone: v || undefined }); update({ tz: v }); say(''); }
@@ -244,6 +270,11 @@ function renderSnippets() {
   if (cfg.max !== D.max) withs.push(['max_repos', cfg.max]);
   if (cfg.forks) withs.push(['forks', 'true']);
   if (!cfg.clock) withs.push(['clock', 'false']);
+  if (cfg.layout !== D.layout) withs.push(['layout', cfg.layout]);
+  if (!cfg.photo) withs.push(['photo', 'false']);
+  if (!cfg.queue) withs.push(['queue', 'false']);
+  if (cfg.layout === 'landscape' && !cfg.name) withs.push(['name', 'false']);
+  if (cfg.layout === 'landscape' && cfg.name && cfg.nameText) withs.push(['name_text', cfg.nameText]);
   for (const k of ['windows', 'hold', 'move', 'fps', 'scale']) if (cfg[k] !== D[k]) withs.push([k, cfg[k]]);
   withs.push(['timezone', cfg.tz || 'UTC']);
 

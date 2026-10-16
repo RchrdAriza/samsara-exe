@@ -16,11 +16,14 @@ No build step, no package.json, no npm dependencies, no test suite or linter. Pl
   node action/render.mjs --user octocat --fx atkinson --timezone Europe/Madrid
   ```
   Flags mirror the action inputs (`--max-repos`, `--dark-output`, ...); `SAMSARA_*` env vars work too. `GITHUB_TOKEN` is picked up if set (avoids the 60 req/hour unauthenticated limit). Output goes to `samsara.gif` / `samsara-dark.gif` in cwd.
+- Portrait regression check: the engine is deterministic, so with `--clock false` the same user and options give byte-identical GIFs. Render before and after a change and compare `sha256sum` (run both close together, the user's repos can change).
 - CI: `.github/workflows/demo.yml` runs the action from this checkout (`uses: ./`) on every push to `main` and daily, regenerating the README demo GIF on the `samsara` branch. A push to `main` is effectively the integration test.
 
 ## Architecture
 
-**`src/engine.js`** is the core, an IIFE exposing one global, `window.Samsara`. It owns everything rendering-related: the `cfg` object (validated/clamped only through `set(patch)`), GitHub API fetching (`load`), drawing to a fixed 480×720 canvas, the 1-bit pipeline (Bayer-dithered fades, separately thresholded text, image effects in `EFFECTS`, two-color `PALETTES`), and a hand-written 2-color LZW GIF encoder (`Gif1Bit`) that emits only changed rectangles and transparent unchanged pixels. Light and dark GIFs share frames and differ only in palette.
+**`src/engine.js`** is the core, an IIFE exposing one global, `window.Samsara`. It owns everything rendering-related: the `cfg` object (validated/clamped only through `set(patch)`), GitHub API fetching (`load`), drawing to the canvas, the 1-bit pipeline (Bayer-dithered fades, separately thresholded text, image effects in `EFFECTS`, two-color `PALETTES`), and a hand-written 2-color LZW GIF encoder (`Gif1Bit`) that emits only changed rectangles and transparent unchanged pixels. Light and dark GIFs share frames and differ only in palette.
+
+Scene coordinates live per layout in `LAYOUTS` (`portrait` 480×720 is the original scene and must stay pixel-identical; `landscape` 960×540 adds `nameBox`). `W`/`H`, the queue curve LUT and the `bits` buffer are rebuilt in `layout()` when `cfg.layout` changes, so `Samsara.W/H` are getters. `applyEffect(T, w, h, clear)` turns a tone map into a 1-bit canvas with the active `fx`; both the circle (`buildHalo`) and the name (`buildName`) go through it.
 
 **`src/app.js`** is the configurator UI on top of the engine: controls, URL ↔ config sync (`syncURL`), live preview loop, in-browser GIF download, and generation of the workflow YAML / README snippets (`renderSnippets`). With `?headless=1` it does nothing except mount the canvas and set `window.samsaraReady`.
 
@@ -28,7 +31,7 @@ No build step, no package.json, no npm dependencies, no test suite or linter. Pl
 
 ### Option naming crosses layers
 
-An option exists in up to five places with different names, e.g. action input `max_repos` → `SAMSARA_MAX_REPOS` / `--max-repos` → render.mjs `params.max` → engine `cfg.max` → URL `?max=`; `timezone` → `tz`. Adding or changing an option means updating:
+An option exists in up to five places with different names, e.g. action input `max_repos` → `SAMSARA_MAX_REPOS` / `--max-repos` → render.mjs `params.max` → engine `cfg.max` → URL `?max=`; `timezone` → `tz`; `name_text` → `cfg.nameText`. The repo-queue toggle is `queue` because `repos` is already the `owner/repo` list. Adding or changing an option means updating:
 
 1. `action.yml` input + `SAMSARA_*` env mapping
 2. `action/render.mjs` `KEYS` and the `params` object in main
@@ -36,4 +39,4 @@ An option exists in up to five places with different names, e.g. action input `m
 4. `src/app.js` initial `S.set({...})` from URL, `syncURL`, `renderSnippets`, and the control in `index.html` if user-facing
 5. `README.md` inputs table (and effects/palettes tables if relevant)
 
-`src/app.js` hardcodes the published action ref `RchrdAriza/samsara-exe@v1` in generated snippets.
+This is a fork of RchrdAriza/samsara-exe. `src/app.js` hardcodes the fork's action ref `AdolfLecompte/samsara-exe@v1` in generated snippets, so the fork needs a `v1` tag.

@@ -96,6 +96,14 @@
         <button type="submit">Load</button>
       </div>
 
+      <div class="row">
+        <label for="layout">Layout</label>
+        <select id="layout">
+          <option value="portrait">Portrait</option>
+          <option value="landscape">Landscape</option>
+        </select>
+      </div>
+      <div class="row" id="nameRow"><label for="nameText">Name</label><input type="text" id="nameText" maxlength="60" spellcheck="false" placeholder="GitHub name"></div>
       <div class="row"><label for="fx">Effect</label><select id="fx"></select></div>
       <div class="row"><label for="palette">Palette</label><select id="palette"></select></div>
       <div class="row">
@@ -115,6 +123,9 @@
       <div class="row">
         <span></span>
         <div>
+          <label><input type="checkbox" id="photo">Show photo</label><br>
+          <label id="nameToggle"><input type="checkbox" id="name">Show name<br></label>
+          <label><input type="checkbox" id="queue">Show repos</label><br>
           <label><input type="checkbox" id="forks">Include forks</label><br>
           <label><input type="checkbox" id="clock">Show last sync time</label><br>
           <label><input type="checkbox" id="invert">Invert colors</label>
