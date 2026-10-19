@@ -7,7 +7,7 @@
 'use strict';
 
 const S = window.Samsara;
-const ACTION = 'AdolfLecompte/samsara-exe@v1';
+const ACTION = 'RchrdAriza/samsara-exe@v1';
 const OUTPUT_BRANCH = 'samsara';
 const P = new URLSearchParams(location.search);
 const $ = id => document.getElementById(id);

@@ -39,4 +39,7 @@ An option exists in up to five places with different names, e.g. action input `m
 4. `src/app.js` initial `S.set({...})` from URL, `syncURL`, `renderSnippets`, and the control in `index.html` if user-facing
 5. `README.md` inputs table (and effects/palettes tables if relevant)
 
-This is a fork of RchrdAriza/samsara-exe. `src/app.js` hardcodes the fork's action ref `AdolfLecompte/samsara-exe@v1` in generated snippets, so the fork needs a `v1` tag.
+`src/app.js` hardcodes this repo's action ref `RchrdAriza/samsara-exe@v1` (`ACTION`) in the
+generated snippets, and `README.md` repeats it in the quickstart workflow. Both must name a
+ref that resolves on GitHub: keep the `v1` tag moving to the released commit, and never point
+them at a fork (users run that action on their own repos with `contents: write`).
